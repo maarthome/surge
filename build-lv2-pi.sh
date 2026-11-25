@@ -6,7 +6,12 @@
 #   ./build-lv2-pi.sh --no-update  skip git pull / submodule update
 #   ./build-lv2-pi.sh --clean      remove the build folder first
 #   ./build-lv2-pi.sh --deps       also apt-install build dependencies
-#   JOBS=2 ./build-lv2-pi.sh       change parallel jobs (default 3)
+#   ./build-lv2-pi.sh --no-swap    don't create the temporary swap file
+#   JOBS=2 ./build-lv2-pi.sh       change parallel jobs (default: all cores)
+#   SWAP_GB=8 ./build-lv2-pi.sh    change temporary swap size (default 6)
+#
+# A temporary swap file is created for the build and always removed again
+# when the script ends (also on error or Ctrl+C). Needs sudo.
 
 set -euo pipefail
 
@@ -15,17 +20,22 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$REPO_DIR/build-lv2"
 LV2_DIR="$HOME/.lv2"
 DATA_DIR="$HOME/.local/share/surge-xt"
-JOBS="${JOBS:-3}"
+JOBS="${JOBS:-$(nproc)}"
+SWAP_GB="${SWAP_GB:-6}"
+SWAP_FILE="/var/swap-surge-build"
+SWAP_ACTIVE=0
 
 DO_UPDATE=1
 DO_CLEAN=0
 DO_DEPS=0
+DO_SWAP=1
 for arg in "$@"; do
   case "$arg" in
     --no-update) DO_UPDATE=0 ;;
     --clean)     DO_CLEAN=1 ;;
     --deps)      DO_DEPS=1 ;;
-    -h|--help)   sed -n '2,10p' "$0"; exit 0 ;;
+    --no-swap)   DO_SWAP=0 ;;
+    -h|--help)   sed -n '2,15p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg"; exit 1 ;;
   esac
 done
@@ -59,6 +69,43 @@ fi
 if [[ $DO_CLEAN -eq 1 ]]; then
   echo "==> Removing $BUILD_DIR"
   rm -rf "$BUILD_DIR"
+fi
+
+remove_swap() {
+  if [[ $SWAP_ACTIVE -eq 1 ]]; then
+    echo "==> Removing temporary swap file $SWAP_FILE"
+    sudo swapoff "$SWAP_FILE" || true
+    SWAP_ACTIVE=0
+  fi
+  if [[ -e "$SWAP_FILE" ]]; then
+    sudo rm -f "$SWAP_FILE"
+  fi
+}
+
+if [[ $DO_SWAP -eq 1 ]]; then
+  # Clean up a leftover file from an interrupted earlier run
+  if swapon --show=NAME --noheadings | grep -qx "$SWAP_FILE"; then
+    sudo swapoff "$SWAP_FILE"
+  fi
+  sudo rm -f "$SWAP_FILE"
+
+  free_gb=$(( $(df --output=avail -k "$(dirname "$SWAP_FILE")" | tail -1) / 1024 / 1024 ))
+  if (( free_gb < SWAP_GB + 2 )); then
+    echo "Not enough free disk space for ${SWAP_GB} GB swap (${free_gb} GB free). Use --no-swap or SWAP_GB=<smaller>."
+    exit 1
+  fi
+
+  echo "==> Creating temporary ${SWAP_GB} GB swap file $SWAP_FILE"
+  trap remove_swap EXIT
+  trap "exit 130" INT TERM
+  if ! sudo fallocate -l "${SWAP_GB}G" "$SWAP_FILE" 2>/dev/null; then
+    sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SWAP_GB * 1024 )) status=progress
+  fi
+  sudo chmod 600 "$SWAP_FILE"
+  sudo mkswap "$SWAP_FILE" >/dev/null
+  sudo swapon "$SWAP_FILE"
+  SWAP_ACTIVE=1
+  free -h
 fi
 
 echo "==> Configuring (LV2 on, standalone and VST3 off)"
