@@ -9,6 +9,8 @@
 #   ./build-lv2-pi.sh --no-swap    don't create the temporary swap file
 #   ./build-lv2-pi.sh --deploy     also copy the plugins to the pi-Stomp
 #   ./build-lv2-pi.sh --deploy-only  only copy (no update/build)
+#   ./build-lv2-pi.sh --deb        also make a .deb package in ./dist
+#   ./build-lv2-pi.sh --deb-only   only make the .deb from the existing build
 #   PISTOMP=pistomp@pistomp.local  pi-Stomp ssh target (this is the default)
 #   JOBS=2 ./build-lv2-pi.sh       change parallel jobs (default: all cores)
 #   SWAP_GB=8 ./build-lv2-pi.sh    change temporary swap size (default 6)
@@ -35,6 +37,7 @@ DO_DEPS=0
 DO_SWAP=1
 DO_DEPLOY=0
 DO_BUILD=1
+DO_DEB=0
 for arg in "$@"; do
   case "$arg" in
     --no-update) DO_UPDATE=0 ;;
@@ -42,8 +45,10 @@ for arg in "$@"; do
     --deps)      DO_DEPS=1 ;;
     --no-swap)   DO_SWAP=0 ;;
     --deploy)    DO_DEPLOY=1 ;;
+    --deb)       DO_DEB=1 ;;
+    --deb-only)  DO_DEB=1; DO_BUILD=0; DO_UPDATE=0; DO_SWAP=0 ;;
     --deploy-only) DO_DEPLOY=1; DO_BUILD=0; DO_UPDATE=0; DO_SWAP=0 ;;
-    -h|--help)   sed -n '2,19p' "$0"; exit 0 ;;
+    -h|--help)   sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg"; exit 1 ;;
   esac
 done
@@ -94,6 +99,62 @@ install_modgui() {
   if ! grep -q "modgui.ttl" "$bundle/manifest.ttl"; then
     printf '\n<https://surge-synthesizer.github.io/lv2/surge-xt>\n    rdfs:seeAlso <modgui.ttl> .\n' >> "$bundle/manifest.ttl"
   fi
+}
+
+make_deb() {
+  # Packages the finished build (plugins, MOD panel, factory data) as a .deb:
+  #   /usr/lib/lv2/Surge XT.lv2, /usr/lib/lv2/Surge XT Effects.lv2, /usr/share/surge-xt
+  local products="$BUILD_DIR/surge_xt_products"
+  command -v dpkg-deb >/dev/null || { echo "dpkg-deb not found"; exit 1; }
+  [[ -d "$products/Surge XT.lv2" ]] || { echo "No build found in $products (build first)"; exit 1; }
+  install_modgui "$products/Surge XT.lv2"
+
+  local arch ver pkg stage out
+  arch="$(dpkg --print-architecture)"
+  ver="1.0+$(date +%Y%m%d).$(git -C "$REPO_DIR" rev-parse --short HEAD)"
+  pkg="surge-xt-lv2-mod"
+  stage="$(mktemp -d)"
+  out="$REPO_DIR/dist/${pkg}_${ver}_${arch}.deb"
+
+  echo "==> Building $out"
+  mkdir -p "$stage/DEBIAN" "$stage/usr/lib/lv2" "$stage/usr/share/surge-xt" "$REPO_DIR/dist"
+  for bundle in "Surge XT.lv2" "Surge XT Effects.lv2"; do
+    [[ -d "$products/$bundle" ]] && cp -r "$products/$bundle" "$stage/usr/lib/lv2/"
+  done
+  cp -r "$REPO_DIR/resources/data/." "$stage/usr/share/surge-xt/"
+
+  cat > "$stage/DEBIAN/control" <<CONTROL
+Package: $pkg
+Version: $ver
+Architecture: $arch
+Maintainer: maarthome <maarthome@users.noreply.github.com>
+Section: sound
+Priority: optional
+Depends: libasound2t64 | libasound2, libfreetype6, libx11-6, libxrandr2, libxinerama1, libxcursor1
+Conflicts: surge-xt-lv2
+Description: Surge XT LV2 plugins with a MOD UI panel (My_adaptions fork)
+ Surge XT synthesizer and Surge XT Effects as LV2 plugins, with a custom
+ MOD UI panel for playing from a keyboard on a pi-Stomp.
+CONTROL
+
+  cat > "$stage/DEBIAN/postinst" <<'POSTINST'
+#!/bin/sh
+set -e
+# Let MOD pick up the new plugins (only if MOD is installed here)
+for unit in mod-host mod-ui; do
+  if systemctl list-unit-files "$unit.service" >/dev/null 2>&1; then
+    systemctl try-restart "$unit" || true
+  fi
+done
+exit 0
+POSTINST
+  chmod 755 "$stage/DEBIAN/postinst"
+
+  find "$stage" -type d -exec chmod 755 {} +
+  dpkg-deb --root-owner-group --build "$stage" "$out" >/dev/null
+  rm -rf "$stage"
+  echo "==> Done: $out"
+  echo "    Install with: sudo apt install \"$out\""
 }
 
 deploy_pistomp() {
@@ -179,6 +240,10 @@ if [[ $DO_BUILD -eq 1 ]]; then
   echo "==> Installing factory data (patches, wavetables) to $DATA_DIR"
   mkdir -p "$DATA_DIR"
   cp -r "$REPO_DIR/resources/data/." "$DATA_DIR/"
+fi
+
+if [[ $DO_DEB -eq 1 ]]; then
+  make_deb
 fi
 
 if [[ $DO_DEPLOY -eq 1 ]]; then
