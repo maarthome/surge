@@ -11,6 +11,9 @@
 #   ./build-lv2-pi.sh --deploy-only  only copy (no update/build)
 #   ./build-lv2-pi.sh --deb        also make a .deb package in ./dist
 #   ./build-lv2-pi.sh --deb-only   only make the .deb from the existing build
+#   --lv2-dir DIR                  where the .lv2 plugin folders go (default ~/.lv2)
+#                                  only the plugins; patches/wavetables keep their own folder
+#                                  (also settable as LV2_DIR=DIR)
 #   PISTOMP=pistomp@pistomp.local  pi-Stomp ssh target (this is the default)
 #   JOBS=2 ./build-lv2-pi.sh       change parallel jobs (default: all cores)
 #   SWAP_GB=8 ./build-lv2-pi.sh    change temporary swap size (default 6)
@@ -23,7 +26,8 @@ set -euo pipefail
 BRANCH="My_adaptions"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$REPO_DIR/build-lv2"
-LV2_DIR="$HOME/.lv2"
+LV2_DIR_EXPLICIT="${LV2_DIR:-}"   # empty = not chosen by the user
+LV2_DIR="${LV2_DIR:-$HOME/.lv2}"
 DATA_DIR="$HOME/.local/share/surge-xt"
 JOBS="${JOBS:-$(nproc)}"
 SWAP_GB="${SWAP_GB:-6}"
@@ -38,7 +42,8 @@ DO_SWAP=1
 DO_DEPLOY=0
 DO_BUILD=1
 DO_DEB=0
-for arg in "$@"; do
+while [[ $# -gt 0 ]]; do
+  arg="$1"; shift
   case "$arg" in
     --no-update) DO_UPDATE=0 ;;
     --clean)     DO_CLEAN=1 ;;
@@ -48,10 +53,18 @@ for arg in "$@"; do
     --deb)       DO_DEB=1 ;;
     --deb-only)  DO_DEB=1; DO_BUILD=0; DO_UPDATE=0; DO_SWAP=0 ;;
     --deploy-only) DO_DEPLOY=1; DO_BUILD=0; DO_UPDATE=0; DO_SWAP=0 ;;
-    -h|--help)   sed -n '2,21p' "$0"; exit 0 ;;
+    --lv2-dir)
+      [[ $# -gt 0 ]] || { echo "--lv2-dir needs a folder"; exit 1; }
+      LV2_DIR_EXPLICIT="$1"; shift ;;
+    --lv2-dir=*) LV2_DIR_EXPLICIT="${arg#--lv2-dir=}" ;;
+    -h|--help)   sed -n '2,24p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg"; exit 1 ;;
   esac
 done
+
+if [[ -n "$LV2_DIR_EXPLICIT" ]]; then
+  LV2_DIR="${LV2_DIR_EXPLICIT/#\~/$HOME}"
+fi
 
 cd "$REPO_DIR"
 
@@ -103,13 +116,19 @@ install_modgui() {
 
 make_deb() {
   # Packages the finished build (plugins, MOD panel, factory data) as a .deb:
-  #   /usr/lib/lv2/Surge XT.lv2, /usr/lib/lv2/Surge XT Effects.lv2, /usr/share/surge-xt
+  #   <lv2 dir>/Surge XT.lv2, <lv2 dir>/Surge XT Effects.lv2 (default /usr/lib/lv2; --lv2-dir
+  #   changes it), and /usr/share/surge-xt for the factory data
   local products="$BUILD_DIR/surge_xt_products"
   command -v dpkg-deb >/dev/null || { echo "dpkg-deb not found"; exit 1; }
   [[ -d "$products/Surge XT.lv2" ]] || { echo "No build found in $products (build first)"; exit 1; }
   install_modgui "$products/Surge XT.lv2"
 
-  local arch ver pkg stage out
+  local arch ver pkg stage out deb_lv2
+  deb_lv2="/usr/lib/lv2"
+  if [[ -n "$LV2_DIR_EXPLICIT" ]]; then
+    [[ "$LV2_DIR" == /* ]] || { echo "For --deb, --lv2-dir must be an absolute path (got: $LV2_DIR)"; exit 1; }
+    deb_lv2="$LV2_DIR"
+  fi
   arch="$(dpkg --print-architecture)"
   ver="1.0+$(date +%Y%m%d).$(git -C "$REPO_DIR" rev-parse --short HEAD)"
   pkg="surge-xt-lv2-mod"
@@ -117,9 +136,9 @@ make_deb() {
   out="$REPO_DIR/dist/${pkg}_${ver}_${arch}.deb"
 
   echo "==> Building $out"
-  mkdir -p "$stage/DEBIAN" "$stage/usr/lib/lv2" "$stage/usr/share/surge-xt" "$REPO_DIR/dist"
+  mkdir -p "$stage/DEBIAN" "$stage$deb_lv2" "$stage/usr/share/surge-xt" "$REPO_DIR/dist"
   for bundle in "Surge XT.lv2" "Surge XT Effects.lv2"; do
-    [[ -d "$products/$bundle" ]] && cp -r "$products/$bundle" "$stage/usr/lib/lv2/"
+    [[ -d "$products/$bundle" ]] && cp -r "$products/$bundle" "$stage$deb_lv2/"
   done
   cp -r "$REPO_DIR/resources/data/." "$stage/usr/share/surge-xt/"
 
@@ -160,17 +179,20 @@ POSTINST
 deploy_pistomp() {
   local products="$BUILD_DIR/surge_xt_products"
   echo "==> Deploying to pi-Stomp ($PISTOMP)"
-  ssh "$PISTOMP" 'mkdir -p ~/.lv2 ~/.local/share/surge-xt'
+  local remote_lv2=".lv2"            # relative to the pi-Stomp user's home
+  [[ -n "$LV2_DIR_EXPLICIT" ]] && remote_lv2="$LV2_DIR_EXPLICIT"
+  echo "    LV2 folder on pi-Stomp: $remote_lv2"
+  ssh "$PISTOMP" "mkdir -p '$remote_lv2' ~/.local/share/surge-xt"
   for bundle in "Surge XT.lv2" "Surge XT Effects.lv2"; do
     if [[ -d "$products/$bundle" ]]; then
-      rsync -a --delete "$products/$bundle/" "$PISTOMP:.lv2/$bundle/"
+      rsync -as --delete "$products/$bundle/" "$PISTOMP:$remote_lv2/$bundle/"
       echo "    copied $bundle"
     else
       echo "    WARNING: $products/$bundle not found (build first)"
     fi
   done
   echo "==> Copying factory data (patches, wavetables)"
-  rsync -a "$REPO_DIR/resources/data/" "$PISTOMP:.local/share/surge-xt/"
+  rsync -as "$REPO_DIR/resources/data/" "$PISTOMP:.local/share/surge-xt/"
   echo "==> Restarting MOD on the pi-Stomp so it finds the new plugins"
   ssh -t "$PISTOMP" 'sudo systemctl restart mod-host mod-ui'
 }
@@ -226,11 +248,18 @@ if [[ $DO_BUILD -eq 1 ]]; then
   PRODUCTS="$BUILD_DIR/surge_xt_products"
   install_modgui "$PRODUCTS/Surge XT.lv2"
   echo "==> Installing LV2 bundles to $LV2_DIR"
-  mkdir -p "$LV2_DIR"
+  SUDO=""
+  if [[ -d "$LV2_DIR" ]]; then
+    [[ -w "$LV2_DIR" ]] || SUDO="sudo"
+  else
+    [[ -w "$(dirname "$LV2_DIR")" ]] || SUDO="sudo"
+  fi
+  [[ -z "$SUDO" ]] || echo "    (needs sudo to write to $LV2_DIR)"
+  $SUDO mkdir -p "$LV2_DIR"
   for bundle in "Surge XT.lv2" "Surge XT Effects.lv2"; do
     if [[ -d "$PRODUCTS/$bundle" ]]; then
-      rm -rf "$LV2_DIR/$bundle"
-      cp -r "$PRODUCTS/$bundle" "$LV2_DIR/"
+      $SUDO rm -rf "$LV2_DIR/$bundle"
+      $SUDO cp -r "$PRODUCTS/$bundle" "$LV2_DIR/"
       echo "    installed $bundle"
     else
       echo "    WARNING: $PRODUCTS/$bundle not found"
