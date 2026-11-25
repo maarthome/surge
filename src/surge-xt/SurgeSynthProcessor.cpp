@@ -165,6 +165,14 @@ SurgeSynthProcessor::SurgeSynthProcessor()
     bypassParameter = vb.get();
     parent->addChild(std::move(vb));
 
+    if (wrapperType == wrapperType_LV2)
+    {
+        buildModPatchList();
+        parent->addChild(std::make_unique<SurgeModPatchParameter>(
+            [this]() { return (int)modPatchList.size(); },
+            [this](int idx) { selectModPatch(idx); }));
+    }
+
     addParameterGroup(std::move(parent));
 
     presetOrderToPatchList.clear();
@@ -190,6 +198,56 @@ SurgeSynthProcessor::SurgeSynthProcessor()
 
     midiKeyboardState.addListener(this);
     oscHandler.initOSC(this, surge);
+}
+
+void SurgeSynthProcessor::buildModPatchList()
+{
+    // Factory patches ordered by their path below patches_factory, compared byte-wise after
+    // ASCII-lowercasing. resources/modgui/gen-patchlist.py builds the names the panel shows with
+    // exactly this rule, so keep the two in sync.
+    modPatchList.clear();
+
+    auto factoryRoot = (surge->storage.datapath / "patches_factory").generic_string();
+    if (!factoryRoot.empty() && factoryRoot.back() != '/')
+        factoryRoot += '/';
+
+    auto lowered = [](std::string s) {
+        for (auto &ch : s)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = (char)(ch - 'A' + 'a');
+        return s;
+    };
+
+    std::vector<std::pair<std::string, int>> keyed;
+    for (size_t i = 0; i < surge->storage.patch_list.size(); ++i)
+    {
+        auto full = surge->storage.patch_list[i].path.generic_string();
+        if (full.compare(0, factoryRoot.size(), factoryRoot) == 0)
+            keyed.emplace_back(lowered(full.substr(factoryRoot.size())), (int)i);
+    }
+
+    std::sort(keyed.begin(), keyed.end());
+    for (auto &k : keyed)
+        modPatchList.push_back(k.second);
+}
+
+void SurgeSynthProcessor::selectModPatch(int idx)
+{
+    // setStateInformation() (pedalboard load) must win over a stored selection value that the
+    // host replays afterwards, same idea as for program changes
+    auto until = suppressProgramChangeUntil.load();
+    if (until != 0)
+    {
+        suppressProgramChangeUntil.store(0);
+        if (juce::Time::currentTimeMillis() < until)
+            return;
+    }
+
+    if (idx < 0 || idx >= (int)modPatchList.size())
+        return;
+
+    surge->patchSelectedFromFavorites = false;
+    surge->patchid_queue = modPatchList[idx];
 }
 
 SurgeSynthProcessor::~SurgeSynthProcessor()

@@ -1,0 +1,18 @@
+@prefix modgui: <http://moddevices.com/ns/modgui#> .
+@prefix lv2:    <http://lv2plug.in/ns/lv2core#> .
+
+<https://surge-synthesizer.github.io/lv2/surge-xt>
+    modgui:gui [
+        modgui:resourcesDirectory <modgui> ;
+        modgui:iconTemplate <modgui/icon-surge-xt.html> ;
+        modgui:stylesheet <modgui/stylesheet-surge-xt.css> ;
+        modgui:javascript <modgui/javascript-surge-xt.js> ;
+        modgui:screenshot <modgui/screenshot-surge-xt.png> ;
+        modgui:thumbnail <modgui/thumbnail-surge-xt.png> ;
+        modgui:brand "Surge" ;
+        modgui:label "Surge XT" ;
+        modgui:model "boxy" ;
+        modgui:panel "2-knobs" ;
+        modgui:color "black" ;
+        modgui:knob "black" ;
+    ] .

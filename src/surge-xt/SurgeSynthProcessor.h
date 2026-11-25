@@ -23,6 +23,9 @@
 #ifndef SURGE_SRC_SURGE_XT_SURGESYNTHPROCESSOR_H
 #define SURGE_SRC_SURGE_XT_SURGESYNTHPROCESSOR_H
 
+#include <algorithm>
+#include <cmath>
+#include <functional>
 #include "SurgeSynthesizer.h"
 #include "SurgeStorage.h"
 #include "util/LockFreeStack.h"
@@ -245,6 +248,62 @@ struct SurgeBypassParameter : public juce::RangedAudioParameter
     bool isAutomatable() const override { return false; }
 
     const juce::NormalisableRange<float> &getNormalisableRange() const override { return range; }
+    juce::NormalisableRange<float> range;
+};
+
+/*
+ * Only created for the LV2 wrapper. LV2 hosts like MOD UI can only talk to plugins through
+ * parameters, so this one parameter selects a factory patch by position in a fixed list
+ * (see SurgeSynthProcessor::buildModPatchList). The value is index / (count - 1).
+ */
+struct SurgeModPatchParameter : public juce::RangedAudioParameter
+{
+    SurgeModPatchParameter(std::function<int()> countFn, std::function<void(int)> selectFn)
+        : countFn(std::move(countFn)), selectFn(std::move(selectFn)), range(0.f, 1.f, 0.f),
+          juce::RangedAudioParameter(juce::ParameterID("surgext-mod-patch", 1),
+                                     "MOD Factory Patch Select",
+                                     juce::AudioProcessorParameterWithIDAttributes())
+    {
+    }
+
+    juce::String getName(int i) const override
+    {
+        return juce::String("MOD Factory Patch Select").substring(0, i);
+    }
+    float getValue() const override { return value; }
+    float getValueForText(const juce::String &text) const override
+    {
+        auto tf = std::atof(text.toRawUTF8());
+        return (float)std::max(std::min(tf, 1.0), 0.0);
+    }
+    float getDefaultValue() const override { return 0.0; }
+    void setValue(float f) override
+    {
+        value = f;
+        auto n = countFn();
+        if (n <= 0)
+            return;
+        auto idx = (int)std::lround(std::max(0.f, std::min(1.f, f)) * (float)(n - 1));
+        if (idx != lastApplied)
+        {
+            lastApplied = idx;
+            selectFn(idx);
+        }
+    }
+    juce::String getText(float normalisedValue, int i) const override
+    {
+        auto n = countFn();
+        auto idx = n > 0 ? (int)std::lround(normalisedValue * (float)(n - 1)) : 0;
+        return juce::String(idx + 1) + " / " + juce::String(n);
+    }
+    bool isAutomatable() const override { return false; }
+
+    const juce::NormalisableRange<float> &getNormalisableRange() const override { return range; }
+
+    std::function<int()> countFn;
+    std::function<void(int)> selectFn;
+    float value{0.f};
+    int lastApplied{-1};
     juce::NormalisableRange<float> range;
 };
 
@@ -502,6 +561,11 @@ class SurgeSynthProcessor : public juce::AudioProcessor,
 
     std::vector<int> presetOrderToPatchList;
     int juceSidePresetId{0};
+
+    // LV2 only: factory patches in a fixed order, selectable through one parameter (MOD UI panel)
+    std::vector<int> modPatchList;
+    void buildModPatchList();
+    void selectModPatch(int idx);
 
     static constexpr int numMidiPrograms{128};
     // JUCE drops any program change whose index equals getCurrentProgram(), so "nothing received

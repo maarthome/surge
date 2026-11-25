@@ -1,0 +1,22 @@
+.surgext { width: 940px; height: 500px; background: #15181d; color: #d8dde6;
+  font-family: "Helvetica Neue", Arial, sans-serif; border-radius: 6px; position: relative; user-select: none; }
+.surgext .sx-root { position: absolute; inset: 0; padding: 10px 14px; box-sizing: border-box; }
+.surgext .sx-top { display: flex; align-items: center; gap: 8px; height: 56px; border-bottom: 1px solid #2a3038; }
+.surgext .sx-title { font-weight: 700; font-size: 15px; letter-spacing: .08em; color: #ff9f2e; margin-right: 6px; }
+.surgext .sx-name { flex: 1; min-width: 0; font-size: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.surgext .sx-sub { font-size: 11px; color: #7e8895; text-align: center; margin-top: 2px; }
+.surgext .sx-namebox { flex: 1; min-width: 0; }
+.surgext button, .surgext select { background: #232932; color: #d8dde6; border: 1px solid #353d48; border-radius: 4px; font-size: 14px; height: 38px; padding: 0 12px; }
+.surgext button { min-width: 56px; font-size: 20px; }
+.surgext button:active { background: #ff9f2e; color: #111; }
+.surgext select { max-width: 210px; font-size: 13px; }
+.surgext .sx-body { display: flex; gap: 12px; margin-top: 10px; height: 410px; }
+.surgext .sx-card { background: #1c2128; border: 1px solid #2a3038; border-radius: 6px; padding: 8px 10px; box-sizing: border-box; }
+.surgext .sx-card h4 { margin: 0 0 4px 0; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #ff9f2e; font-weight: 600; }
+.surgext .sx-col { display: flex; flex-direction: column; gap: 10px; }
+.surgext .sx-row { display: flex; gap: 4px; justify-content: space-around; }
+.surgext canvas.sx-graph { width: 100%; height: 62px; background: #11151a; border-radius: 4px; display: block; margin-bottom: 4px; }
+.surgext .sx-knob { width: 58px; text-align: center; touch-action: none; cursor: ns-resize; }
+.surgext .sx-knob canvas { width: 52px; height: 52px; display: block; margin: 0 auto; }
+.surgext .sx-knob .sx-label { font-size: 10px; color: #9aa4b2; margin-top: 1px; }
+.surgext .sx-knob .sx-val { font-size: 11px; color: #e9edf3; font-variant-numeric: tabular-nums; }

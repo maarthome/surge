@@ -79,6 +79,23 @@ if [[ $DO_CLEAN -eq 1 ]]; then
   rm -rf "$BUILD_DIR"
 fi
 
+install_modgui() {
+  # Adds the MOD UI panel (resources/modgui/surge-xt) to the built "Surge XT.lv2" bundle
+  local bundle="$1"
+  local src="$REPO_DIR/resources/modgui/surge-xt"
+  local dst="$bundle/modgui"
+  echo "==> Adding MOD UI panel to $(basename "$bundle")"
+  mkdir -p "$dst"
+  cp "$src/icon-surge-xt.html" "$src/stylesheet-surge-xt.css" \
+     "$src/screenshot-surge-xt.png" "$src/thumbnail-surge-xt.png" "$dst/"
+  python3 "$src/gen-patchlist.py" "$REPO_DIR/resources/data" \
+     "$src/javascript-surge-xt.js" "$dst/javascript-surge-xt.js"
+  cp "$src/modgui.ttl" "$bundle/modgui.ttl"
+  if ! grep -q "modgui.ttl" "$bundle/manifest.ttl"; then
+    printf '\n<https://surge-synthesizer.github.io/lv2/surge-xt>\n    rdfs:seeAlso <modgui.ttl> .\n' >> "$bundle/manifest.ttl"
+  fi
+}
+
 deploy_pistomp() {
   local products="$BUILD_DIR/surge_xt_products"
   echo "==> Deploying to pi-Stomp ($PISTOMP)"
@@ -146,6 +163,7 @@ if [[ $DO_BUILD -eq 1 ]]; then
   cmake --build "$BUILD_DIR" --config Release --target surge-xt_LV2 surge-fx_LV2 -j "$JOBS"
 
   PRODUCTS="$BUILD_DIR/surge_xt_products"
+  install_modgui "$PRODUCTS/Surge XT.lv2"
   echo "==> Installing LV2 bundles to $LV2_DIR"
   mkdir -p "$LV2_DIR"
   for bundle in "Surge XT.lv2" "Surge XT Effects.lv2"; do
