@@ -87,7 +87,7 @@ def find_pistomp(given):
 def ensure_wide_window(pistomp):
     f = pistomp / "plugins" / "parameter_window.py"
     s = f.read_text()
-    if "n == 0 and len(self._list_params()) > 8" in s:
+    if "n == 0 and len(self._list_params()) > 8" in s or "_MAX_NARROW_LIST_ROWS" in s:
         return
     old = "        if n >= _MAX_PINNED:\n            w = self.WIN_W\n"
     new = "        if n >= _MAX_PINNED or (n == 0 and len(self._list_params()) > 8):\n            w = self.WIN_W\n"
