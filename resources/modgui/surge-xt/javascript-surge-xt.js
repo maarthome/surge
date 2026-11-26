@@ -18,25 +18,92 @@ function (event, funcs) {
     function fmtDb(x) { var v = (x * 2 - 1) * 48; return (v > 0 ? '+' : '') + v.toFixed(1) + ' dB'; }
     function fmtBi(x) { var v = (x * 2 - 1) * 100; return (v > 0 ? '+' : '') + v.toFixed(0) + '%'; }
 
-    // id, label, formatter, default shown before the host reports a value
+    function fmtSt7(x) { var v = (x * 2 - 1) * 7; return (v > 0 ? '+' : '') + v.toFixed(2) + ' st'; }
+    function fmtDb12(x) { var v = (x * 2 - 1) * 12; return (v > 0 ? '+' : '') + v.toFixed(1) + ' dB'; }
+    function fmtVel(x) { return ((x - 1) * 48).toFixed(1) + ' dB'; }
+    function fmtHp(x) { var f = 440 * Math.pow(2, (-72 + 87 * x) / 12); return f < 1000 ? f.toFixed(0) + ' Hz' : (f / 1000).toFixed(2) + ' kHz'; }
+    function fmtBend(x) { return Math.round(x * 24) + ' st'; }
+    var NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    function noteName(i) { return NOTES[i % 12] + (Math.floor(i / 12) - 1); }
+
+    // lists taken from Surge (filter types as [enum index, name, group], waveshapers, play modes ...)
+    var FILTERS = [[0,"Off",""],[1,"LP 12 dB","Lowpass"],[2,"LP 24 dB","Lowpass"],[3,"LP Legacy Ladder","Lowpass"],[10,"LP Vintage Ladder","Lowpass"],[13,"LP K35","Lowpass"],[15,"LP Diode Ladder","Lowpass"],[11,"LP OB-Xd 12 dB","Lowpass"],[12,"LP OB-Xd 24 dB","Lowpass"],[16,"LP Cutoff Warp","Lowpass"],[28,"LP Res Warp","Lowpass"],[6,"BP 12 dB","Bandpass"],[23,"BP 24 dB","Bandpass"],[22,"BP OB-Xd 12 dB","Bandpass"],[19,"BP Cutoff Warp","Bandpass"],[31,"BP Res Warp","Bandpass"],[4,"HP 12 dB","Highpass"],[5,"HP 24 dB","Highpass"],[14,"HP K35","Highpass"],[20,"HP OB-Xd 12 dB","Highpass"],[17,"HP Cutoff Warp","Highpass"],[29,"HP Res Warp","Highpass"],[7,"N 12 dB","Notch"],[24,"N 24 dB","Notch"],[21,"N OB-Xd 12 dB","Notch"],[18,"N Cutoff Warp","Notch"],[30,"N Res Warp","Notch"],[34,"MULTI Fast SVF","Multi"],[33,"MULTI Tri-pole","Multi"],[35,"MULTI Xpander","Multi"],[26,"FX Allpass","Effect"],[27,"FX Cutoff Warp AP","Effect"],[32,"FX Res Warp AP","Effect"],[8,"FX Comb +","Effect"],[25,"FX Comb -","Effect"],[9,"FX Sample & Hold","Effect"]], NFILT = 36;
+    var WS = ["Off","Soft","Hard","Asymmetric","Sine","Digital","Soft Harmonic 2","Soft Harmonic 3","Soft Harmonic 4","Soft Harmonic 5","Full Wave","Half Wave Positive","Half Wave Negative","Soft Rectifier","Single Fold","Double Fold","West Coast Fold","Additive 1+2","Additive 1+3","Additive 1+4","Additive 1+5","Additive 12345","Additive Saw 3","Additive Square 3","Fuzz","Fuzz Soft Clip","Heavy Fuzz","Fuzz Center","Fuzz Soft Edge","Sin+x","Sin 2x + x","Sin 3x + x","Sin 7x + x","Sin 10x + x","2 Cycle","7 Cycle","10 Cycle","2 Cycle Bound","7 Cycle Bound","10 Cycle Bound","Medium","OJD","Soft Single Fold","Linear Fold","Sine Fold"];
+    var PLAYMODES = ['Poly', 'Mono', 'Mono (Single Trigger)', 'Mono (Fingered Portamento)', 'Mono (Single Trigger & Fingered Portamento)', 'Latch (Monophonic)'];
+    var FCONFIG = ['Serial 1', 'Serial 2', 'Serial 3', 'Dual 1', 'Dual 2', 'Stereo', 'Ring', 'Wide'];
+    var ROUTES = ['F1', 'Both', 'F2'];
+
+    // Every control: key -> [parameter, label, type, options]
+    //   type k = knob, h = horizontal slider, v = vertical fader, t = toggle button, s = drop-down list,
+    //   n = stepper (- value +), o = octave buttons, r = route button (F1 / Both / F2)
+    //   options: fmt (value text), def (normalized default), bi (bipolar display),
+    //            min/max (integer parameters: normalized = (i - min) / (max - min)), list (names for s / n)
     var KNOBS = {
-        cutoff:  ['a_filter1_cutoff',    'Cutoff',  fmtHz,   0.5],
-        res:     ['a_filter1_resonance', 'Reso',    fmtPct,  0.0],
-        envmod:  ['a_filter1_envmod',    'Env amt', fmtBi,   0.5],
-        gain:    ['a_vca_level',         'Gain',    fmtDb,   0.5],
-        a_vol:   ['a_volume',            'Level',   fmtPct,  0.8],
-        g_vol:   ['volume',              'Master',  fmtPct,  0.8],
-        o1:      ['a_level_o1',          'Osc 1',   fmtPct,  0.8],
-        o2:      ['a_level_o2',          'Osc 2',   fmtPct,  0.0],
-        o3:      ['a_level_o3',          'Osc 3',   fmtPct,  0.0]
+        oct:     ['a_octave',        'Octave',     'o', {min: -3, max: 3, def: 3 / 6}],
+        pitch:   ['a_pitch',         'Pitch',      'h', {fmt: fmtSt7, def: 0.5, bi: 1}],
+        porta:   ['a_portamento',    'Portamento', 'h', {fmt: fmtPct, def: 0}],
+        bend_dn: ['a_pbrange_dn',    'Bend down',  'h', {fmt: fmtBend, def: 2 / 24, min: 0, max: 24}],
+        bend_up: ['a_pbrange_up',    'Bend up',    'h', {fmt: fmtBend, def: 2 / 24, min: 0, max: 24}],
+        playmode:['a_polymode',      'Play mode',  's', {list: PLAYMODES, min: 0, max: 5, def: 0}],
+        drift:   ['a_drift',         'Osc drift',  'h', {fmt: fmtPct, def: 0}],
+        noisecol:['a_noisecol',      'Noise color','h', {fmt: fmtBi, def: 0.5, bi: 1}],
+
+        f1_type: ['a_filter1_type',  'Filter 1',   's', {filter: 1, def: 1 / 35}],
+        f2_type: ['a_filter2_type',  'Filter 2',   's', {filter: 1, def: 0}],
+        f1_sub:  ['a_filter1_subtype','Sub',       'n', {min: 0, max: 15, def: 0, pre: 'Sub '}],
+        f2_sub:  ['a_filter2_subtype','Sub',       'n', {min: 0, max: 15, def: 0, pre: 'Sub '}],
+        cutoff:  ['a_filter1_cutoff','Cutoff',     'h', {fmt: fmtHz, def: 0.5}],
+        res:     ['a_filter1_resonance','Resonance','h', {fmt: fmtPct, def: 0}],
+        cutoff2: ['a_filter2_cutoff','Cutoff',     'h', {fmt: fmtHz, def: 0.5}],
+        res2:    ['a_filter2_resonance','Resonance','h', {fmt: fmtPct, def: 0}],
+        fconfig: ['a_fb_config',     'Config',     's', {list: FCONFIG, min: 0, max: 7, def: 0}],
+        fbal:    ['a_f_balance',     'Filter balance','h', {fmt: fmtBi, def: 0.5, bi: 1}],
+        f2off:   ['a_f2_cf_is_offset','Offset',    't', {def: 0}],
+        f2link:  ['a_f2_link_resonance','Link',    't', {def: 0}],
+        hp:      ['a_lowcut',        'HP',         'h', {fmt: fmtHp, def: 0}],
+        kroot:   ['a_ktrkroot',      'Root key',   'n', {min: 0, max: 127, def: 60 / 127, text: noteName}],
+        kt1:     ['a_filter1_keytrack','F1',       'h', {fmt: fmtBi, def: 0.5, bi: 1}],
+        kt2:     ['a_filter2_keytrack','F2',       'h', {fmt: fmtBi, def: 0.5, bi: 1}],
+        wstype:  ['a_ws_type',       'Waveshaper', 's', {list: WS, min: 0, max: WS.length - 1, def: 0}],
+        wsdrive: ['a_ws_drive',      'Drive',      'h', {fmt: fmtDb12, def: 0.5, bi: 1}],
+
+        o1:      ['a_level_o1',      '1',          'v', {fmt: fmtPct, def: 0.8}],
+        o2:      ['a_level_o2',      '2',          'v', {fmt: fmtPct, def: 0}],
+        o3:      ['a_level_o3',      '3',          'v', {fmt: fmtPct, def: 0}],
+        r12:     ['a_level_ring12',  '1x2',        'v', {fmt: fmtPct, def: 0}],
+        r23:     ['a_level_ring23',  '2x3',        'v', {fmt: fmtPct, def: 0}],
+        noise:   ['a_level_noise',   'N',          'v', {fmt: fmtPct, def: 0}],
+        pfg:     ['a_level_pfg',     'Gain',       'v', {fmt: fmtDb, def: 0.5, bi: 1}],
+
+        aeg_a:   ['a_env1_attack',   'A',          'v', {fmt: fmtTime, def: 0.5}],
+        aeg_d:   ['a_env1_decay',    'D',          'v', {fmt: fmtTime, def: 0.5}],
+        aeg_s:   ['a_env1_sustain',  'S',          'v', {fmt: fmtPct, def: 0.5}],
+        aeg_r:   ['a_env1_release',  'R',          'v', {fmt: fmtTime, def: 0.5}],
+        aeg_mode:['a_env1_mode',     'Digital',    't', {def: 0, names: ['Digital', 'Analog']}],
+        vel:     ['a_vca_velsense',  'Vel',        'v', {fmt: fmtVel, def: 1}],
+        gain:    ['a_vca_level',     'Gain',       'v', {fmt: fmtDb, def: 0.5, bi: 1}],
+        feg_a:   ['a_env2_attack',   'A',          'v', {fmt: fmtTime, def: 0.5}],
+        feg_d:   ['a_env2_decay',    'D',          'v', {fmt: fmtTime, def: 0.5}],
+        feg_s:   ['a_env2_sustain',  'S',          'v', {fmt: fmtPct, def: 0.5}],
+        feg_r:   ['a_env2_release',  'R',          'v', {fmt: fmtTime, def: 0.5}],
+        feg_mode:['a_env2_mode',     'Digital',    't', {def: 0, names: ['Digital', 'Analog']}],
+        envmod:  ['a_filter1_envmod','F1',         'v', {fmt: fmtBi, def: 0.5, bi: 1}],
+        envmod2: ['a_filter2_envmod','F2',         'v', {fmt: fmtBi, def: 0.5, bi: 1}],
+
+        a_vol:   ['a_volume',        'Volume',     'v', {fmt: fmtPct, def: 0.8}],
+        pan:     ['a_pan',           'Pan',        'v', {fmt: fmtBi, def: 0.5, bi: 1}],
+        width:   ['a_pan2',          'Width',      'v', {fmt: fmtBi, def: 0.5, bi: 1}],
+        fx1:     ['a_send_fx_1',     'FX 1',       'v', {fmt: fmtPct, def: 0}],
+        fx2:     ['a_send_fx_2',     'FX 2',       'v', {fmt: fmtPct, def: 0}],
+        g_vol:   ['volume',          'Master',     'v', {fmt: fmtPct, def: 0.8}]
     };
-    ['a', 'd', 's', 'r'].forEach(function (k, i) {
-        var nm = ['Attack', 'Decay', 'Sustain', 'Release'][i];
-        var fm = k === 's' ? fmtPct : fmtTime;
-        KNOBS['aeg_' + k] = ['a_env1_' + {a:'attack', d:'decay', s:'sustain', r:'release'}[k], nm, fm, 0.5];
-        KNOBS['feg_' + k] = ['a_env2_' + {a:'attack', d:'decay', s:'sustain', r:'release'}[k], nm, fm, 0.5];
+    ['o1', 'o2', 'o3', 'ring12', 'ring23', 'noise'].forEach(function (n, i) {
+        var key = ['o1', 'o2', 'o3', 'r12', 'r23', 'noise'][i];
+        KNOBS['mute_' + key]  = ['a_mute_' + n,  'M', 't', {def: 0}];
+        KNOBS['solo_' + key]  = ['a_solo_' + n,  'S', 't', {def: 0}];
+        KNOBS['route_' + key] = ['a_route_' + n, '',  'r', {min: 0, max: 2, def: 0.5}];
     });
-    for (var m = 0; m < 8; m++) { KNOBS['m' + m] = ['macro_' + m, 'M' + (m + 1), fmtPct, 0.0]; }
+    for (var m = 0; m < 8; m++) { KNOBS['m' + m] = ['macro_' + m, 'M' + (m + 1), 'k', {fmt: fmtPct, def: 0}]; }
 
     function sendLimited(d, uri, v) {
         d.pending[uri] = v;
@@ -113,17 +180,34 @@ function (event, funcs) {
             '<button class="sx-saveas" title="Save the current sound as a preset">Save as&hellip;</button>' +
             '<div class="sx-namebox"><div class="sx-name">-</div><div class="sx-sub"></div></div></div>' +
             '<div class="sx-body">' +
-            '<div class="sx-col sx-col-w">' +
-              '<div class="sx-card"><h4>Amp envelope</h4><canvas class="sx-graph sx-g-aeg" width="560" height="140"></canvas><div class="sx-row" data-k="aeg_a,aeg_d,aeg_s,aeg_r,gain"></div></div>' +
-              '<div class="sx-card"><h4>Filter envelope</h4><canvas class="sx-graph sx-g-feg" width="560" height="140"></canvas><div class="sx-row" data-k="feg_a,feg_d,feg_s,feg_r"></div></div>' +
+            '<div class="sx-r sx-r1">' +
+              '<div class="sx-card sx-c-scene"><h4>Scene</h4>' +
+                '<div class="sx-line"><span class="sx-c" data-c="oct"></span><span class="sx-c" data-c="pitch"></span><span class="sx-c" data-c="porta"></span></div>' +
+                '<div class="sx-line"><span class="sx-c" data-c="bend_dn"></span><span class="sx-c" data-c="bend_up"></span><span class="sx-c" data-c="playmode"></span></div>' +
+                '<div class="sx-line"><span class="sx-c" data-c="drift"></span><span class="sx-c" data-c="noisecol"></span></div></div>' +
+              '<div class="sx-card sx-c-filt"><h4>Filters</h4>' +
+                '<div class="sx-line"><span class="sx-c" data-c="f1_type"></span><span class="sx-c" data-c="f1_sub"></span><span class="sx-c" data-c="cutoff"></span><span class="sx-c" data-c="res"></span><span class="sx-c" data-c="kt1"></span></div>' +
+                '<div class="sx-line"><span class="sx-c" data-c="f2_type"></span><span class="sx-c" data-c="f2_sub"></span><span class="sx-c" data-c="cutoff2"></span><span class="sx-c" data-c="res2"></span><span class="sx-c" data-c="kt2"></span></div>' +
+                '<div class="sx-line"><span class="sx-c" data-c="fconfig"></span><span class="sx-c" data-c="fbal"></span><span class="sx-c" data-c="f2off"></span><span class="sx-c" data-c="f2link"></span><span class="sx-c" data-c="hp"></span><span class="sx-c" data-c="kroot"></span></div>' +
+                '<div class="sx-line"><span class="sx-c" data-c="wstype"></span><span class="sx-c" data-c="wsdrive"></span><canvas class="sx-graph sx-g-flt" width="300" height="60"></canvas></div></div>' +
             '</div>' +
-            '<div class="sx-col sx-col-w">' +
-              '<div class="sx-card"><h4>Filter (schematic)</h4><canvas class="sx-graph sx-g-flt" width="560" height="140"></canvas><div class="sx-row" data-k="cutoff,res,envmod"></div></div>' +
-              '<div class="sx-card"><h4>Mixer / Output</h4><div class="sx-row" data-k="o1,o2,o3"></div><div class="sx-row" data-k="a_vol,g_vol"></div></div>' +
+            '<div class="sx-r sx-r2">' +
+              '<div class="sx-card sx-c-mix"><h4>Mixer</h4><div class="sx-mixrow">' +
+                ['o1', 'o2', 'o3', 'r12', 'r23', 'noise'].map(function (n) {
+                    return '<div class="sx-ch"><span class="sx-c" data-c="' + n + '"></span><div class="sx-ms"><span class="sx-c" data-c="mute_' + n + '"></span><span class="sx-c" data-c="solo_' + n + '"></span></div><span class="sx-c" data-c="route_' + n + '"></span></div>';
+                }).join('') +
+                '<div class="sx-ch"><span class="sx-c" data-c="pfg"></span></div></div></div>' +
+              '<div class="sx-card sx-c-eg"><h4>Filter EG</h4><canvas class="sx-graph sx-g-feg" width="300" height="60"></canvas>' +
+                '<div class="sx-faders"><span class="sx-c" data-c="feg_a"></span><span class="sx-c" data-c="feg_d"></span><span class="sx-c" data-c="feg_s"></span><span class="sx-c" data-c="feg_r"></span><span class="sx-sp"></span><span class="sx-c" data-c="envmod"></span><span class="sx-c" data-c="envmod2"></span></div>' +
+                '<span class="sx-c" data-c="feg_mode"></span></div>' +
+              '<div class="sx-card sx-c-eg"><h4>Amp EG</h4><canvas class="sx-graph sx-g-aeg" width="300" height="60"></canvas>' +
+                '<div class="sx-faders"><span class="sx-c" data-c="aeg_a"></span><span class="sx-c" data-c="aeg_d"></span><span class="sx-c" data-c="aeg_s"></span><span class="sx-c" data-c="aeg_r"></span><span class="sx-sp"></span><span class="sx-c" data-c="vel"></span><span class="sx-c" data-c="gain"></span></div>' +
+                '<span class="sx-c" data-c="aeg_mode"></span></div>' +
+              '<div class="sx-card sx-c-out"><h4>Scene output</h4><div class="sx-faders"><span class="sx-c" data-c="a_vol"></span><span class="sx-c" data-c="pan"></span><span class="sx-c" data-c="width"></span><span class="sx-c" data-c="fx1"></span><span class="sx-c" data-c="fx2"></span><span class="sx-sp"></span><span class="sx-c" data-c="g_vol"></span></div></div>' +
             '</div>' +
-            '<div class="sx-col" style="flex:1">' +
-              '<div class="sx-card"><h4>Macros</h4><div class="sx-row" data-k="m0,m1,m2,m3"></div><div class="sx-row" data-k="m4,m5,m6,m7"></div></div>' +
-            '</div></div>' +
+            '<div class="sx-r sx-r3"><div class="sx-card sx-c-mac"><h4>Macros</h4><div class="sx-line">' +
+                [0, 1, 2, 3, 4, 5, 6, 7].map(function (i) { return '<span class="sx-c" data-c="m' + i + '"></span>'; }).join('') +
+            '</div></div></div></div>' +
             '<button class="sx-x11" title="Open the Surge XT editor window as a web page (VNC) on this PC; edits there are copied to this plugin">GUI &#8599;</button>' +
             '<div class="sx-modal" hidden><div class="sx-dialog"><div class="sx-dlg-title">Save preset as</div>' +
               '<input class="sx-name-in" type="text" maxlength="60" spellcheck="false">' +
@@ -131,27 +215,9 @@ function (event, funcs) {
               '<div class="sx-dlg-btns"><button class="sx-cancel">Cancel</button><button class="sx-ok">Save</button></div></div></div>';
         root.innerHTML = h;
         d.root = root; d.knobs = {};
-        $(root).find('.sx-row').each(function () {
-            var row = this;
-            this.getAttribute('data-k').split(',').forEach(function (key) {
-                var def = KNOBS[key], el = document.createElement('div');
-                el.className = 'sx-knob';
-                el.innerHTML = '<canvas width="104" height="104"></canvas><div class="sx-val"></div><div class="sx-label">' + def[1] + '</div>';
-                row.appendChild(el);
-                var k = { key: key, uri: BASE + def[0], fmt: def[2], v: d.values[BASE + def[0]], el: el,
-                          cv: el.querySelector('canvas'), txt: el.querySelector('.sx-val'), bi: key === 'envmod' || key === 'gain' };
-                if (k.v === undefined) k.v = def[3];
-                d.knobs[key] = k;
-                var drag = null;
-                el.addEventListener('pointerdown', function (e) { drag = { y: e.clientY, v: k.v }; el.setPointerCapture(e.pointerId); e.preventDefault(); });
-                el.addEventListener('pointermove', function (e) {
-                    if (!drag) return;
-                    var nv = Math.max(0, Math.min(1, drag.v + (drag.y - e.clientY) / (e.shiftKey ? 800 : 200)));
-                    setKnob(d, k, nv, true);
-                });
-                el.addEventListener('pointerup', function () { drag = null; });
-                el.addEventListener('dblclick', function () { setKnob(d, k, (k.bi && key.charAt(0) === 'm') ? 0.5 : def[3], true); });
-            });
+        $(root).find('.sx-c').each(function () {
+            var key = this.getAttribute('data-c'), def = KNOBS[key];
+            if (def) makeCtl(d, key, def, this);
         });
         var $cat = $(root).find('.sx-cat'), $pat = $(root).find('.sx-pat');
         $cat.on('change', function () {
@@ -373,11 +439,101 @@ function (event, funcs) {
         }
     }
 
+    // normalized value <-> integer parameter value
+    function toIdx(k, v) { return Math.round(k.min + v * (k.max - k.min)); }
+    function toNorm(k, i) { return k.max > k.min ? (i - k.min) / (k.max - k.min) : 0; }
+
+    function makeCtl(d, key, def, host) {
+        var o = def[3], type = def[2], uri = BASE + def[0], el = document.createElement('div');
+        var k = { key: key, uri: uri, type: type, el: el, fmt: o.fmt || fmtPct, bi: !!o.bi, def: o.def || 0,
+                  min: o.min, max: o.max, v: d.values[uri] };
+        if (k.v === undefined) k.v = k.def;
+        d.knobs[key] = k;
+        el.className = 'sx-w sx-w-' + type;
+        host.appendChild(el);
+        function commit(nv) { setKnob(d, k, Math.max(0, Math.min(1, nv)), true); }
+        var drag = null;
+        if (type === 'k') {
+            el.innerHTML = '<canvas width="104" height="104"></canvas><div class="sx-val"></div><div class="sx-label">' + def[1] + '</div>';
+            k.cv = el.querySelector('canvas'); k.txt = el.querySelector('.sx-val');
+            el.addEventListener('pointerdown', function (e) { drag = { y: e.clientY, v: k.v }; el.setPointerCapture(e.pointerId); e.preventDefault(); });
+            el.addEventListener('pointermove', function (e) { if (drag) commit(drag.v + (drag.y - e.clientY) / (e.shiftKey ? 800 : 200)); });
+            el.addEventListener('pointerup', function () { drag = null; });
+            el.addEventListener('dblclick', function () { commit(k.bi ? 0.5 : k.def); });
+            k.draw = function () { drawKnob(k.cv, k.v, k.bi); k.txt.textContent = k.fmt(k.v); };
+        } else if (type === 'h' || type === 'v') {
+            el.innerHTML = '<div class="sx-label">' + def[1] + '</div><div class="sx-track"><div class="sx-fill"></div><div class="sx-thumb"></div></div><div class="sx-val"></div>';
+            if (type === 'h') { el.innerHTML = '<div class="sx-hh"><span class="sx-label">' + def[1] + '</span><span class="sx-val"></span></div><div class="sx-track"><div class="sx-fill"></div><div class="sx-thumb"></div></div>'; }
+            var tr = el.querySelector('.sx-track'), fill = el.querySelector('.sx-fill'), th = el.querySelector('.sx-thumb'), tx = el.querySelector('.sx-val');
+            var tfmt = type === 'v' ? function (x) { return k.fmt(x).replace(' dB', ''); } : k.fmt;
+            function setFromEvent(e) {
+                var r = tr.getBoundingClientRect(), f = type === 'h' ? (e.clientX - r.left) / r.width : 1 - (e.clientY - r.top) / r.height;
+                var nv = Math.max(0, Math.min(1, f));
+                if (k.min !== undefined) nv = toNorm(k, toIdx(k, nv));
+                commit(nv);
+            }
+            tr.addEventListener('pointerdown', function (e) { drag = true; tr.setPointerCapture(e.pointerId); setFromEvent(e); e.preventDefault(); });
+            tr.addEventListener('pointermove', function (e) { if (drag) setFromEvent(e); });
+            tr.addEventListener('pointerup', function () { drag = null; });
+            el.addEventListener('dblclick', function () { commit(k.def); });
+            k.draw = function () {
+                var v = k.v, a = k.bi ? Math.min(v, 0.5) : 0, b = k.bi ? Math.max(v, 0.5) : v;
+                if (type === 'h') { fill.style.left = (a * 100) + '%'; fill.style.width = ((b - a) * 100) + '%'; th.style.left = (v * 100) + '%'; }
+                else { fill.style.bottom = (a * 100) + '%'; fill.style.height = ((b - a) * 100) + '%'; th.style.bottom = (v * 100) + '%'; }
+                tx.textContent = tfmt(v);
+            };
+        } else if (type === 't') {
+            var names = o.names;
+            el.innerHTML = '<button class="sx-tog">' + def[1] + '</button>';
+            var bt = el.firstChild;
+            bt.addEventListener('click', function () { commit(k.v > 0.5 ? 0 : 1); });
+            k.draw = function () { bt.classList.toggle('on', k.v > 0.5); if (names) bt.textContent = names[k.v > 0.5 ? 1 : 0].toUpperCase(); };
+        } else if (type === 'r') {
+            el.innerHTML = '<button class="sx-route"></button>';
+            var rb = el.firstChild;
+            rb.addEventListener('click', function () { commit(toNorm(k, (toIdx(k, k.v) + 1) % 3)); });
+            k.draw = function () { rb.textContent = ROUTES[toIdx(k, k.v)] || ''; };
+        } else if (type === 'o') {
+            var h = '';
+            for (var i = -3; i <= 3; i++) h += '<button data-i="' + i + '">' + (i > 0 ? '+' + i : i) + '</button>';
+            el.innerHTML = '<div class="sx-label">Octave</div><div class="sx-octs">' + h + '</div>';
+            $(el).find('button').on('click', function () { commit(toNorm(k, parseInt(this.getAttribute('data-i'), 10))); });
+            k.draw = function () { var cur = toIdx(k, k.v); $(el).find('button').each(function () { $(this).toggleClass('on', parseInt(this.getAttribute('data-i'), 10) === cur); }); };
+        } else if (type === 'n') {
+            el.innerHTML = '<div class="sx-label">' + def[1] + '</div><div class="sx-step"><button>&minus;</button><span></span><button>+</button></div>';
+            var bs = el.querySelectorAll('button'), sp = el.querySelector('span');
+            function stepBy(n) { var i = Math.max(k.min, Math.min(k.max, toIdx(k, k.v) + n)); commit(toNorm(k, i)); }
+            bs[0].addEventListener('click', function () { stepBy(-1); });
+            bs[1].addEventListener('click', function () { stepBy(1); });
+            k.draw = function () { var i = toIdx(k, k.v); sp.textContent = (o.pre || '') + (o.text ? o.text(i) : i); };
+        } else if (type === 's') {
+            var sel = document.createElement('select'), opts = '';
+            if (o.filter) {
+                // 36 filter types, grouped; the value is Surge's own filter type number
+                var groups = {}, order = [];
+                FILTERS.forEach(function (f) { var g = f[2] || 'Off'; if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(f); });
+                order.forEach(function (g) {
+                    var items = groups[g].map(function (f) { return '<option value="' + f[0] + '">' + esc(f[1]) + '</option>'; }).join('');
+                    opts += g === 'Off' ? items : '<optgroup label="' + esc(g) + '">' + items + '</optgroup>';
+                });
+                k.toNorm = function (i) { return i / (NFILT - 1); };
+                k.toIdx = function (v) { return Math.round(v * (NFILT - 1)); };
+            } else {
+                o.list.forEach(function (n, i) { opts += '<option value="' + i + '">' + esc(n) + '</option>'; });
+                k.toNorm = function (i) { return toNorm(k, i); };
+                k.toIdx = function (v) { return toIdx(k, v); };
+            }
+            sel.innerHTML = opts;
+            el.appendChild(sel);
+            sel.addEventListener('change', function () { commit(k.toNorm(parseInt(sel.value, 10))); });
+            k.draw = function () { sel.value = String(k.toIdx(k.v)); };
+        }
+    }
+
     function setKnob(d, k, v, send) {
         if (send) k.local = Date.now();
         k.v = v;
-        drawKnob(k.cv, v, k.bi);
-        k.txt.textContent = k.fmt(v);
+        k.draw();
         if (send) sendLimited(d, k.uri, v);
         redrawGraphs(d);
     }
@@ -421,7 +577,7 @@ function (event, funcs) {
         function g(pre) { return function (x) { return K[pre + '_' + x].v; }; }
         drawEnv(root.querySelector('.sx-g-aeg'), g('aeg'));
         drawEnv(root.querySelector('.sx-g-feg'), g('feg'));
-        drawFilter(root.querySelector('.sx-g-flt'), K.cutoff.v, K.res.v);
+        var fc = root.querySelector('.sx-g-flt'); if (fc) drawFilter(fc, K.cutoff.v, K.res.v);
     }
 
     var d = event.data;

@@ -19,7 +19,7 @@
 #   --no-knobs                     don't build/install "Surge XT Knobs" (24 real LV2 knobs -> MIDI CC for
 #                                  the pi-Stomp display; on by default)
 #   --no-progress                  show the raw compiler output instead of the progress bar
-#   --panel-scale N                size of the MOD UI panel, 1.0 = 940x500 px (default 1.25)
+#   --panel-scale N                size of the MOD UI panel, 1.0 = 1100x640 px (default 1.0)
 #                                  (also settable as PANEL_SCALE=N)
 #   --lv2-dir DIR                  where the .lv2 plugin folders go (default ~/.lv2)
 #                                  only the plugins; patches/wavetables keep their own folder
@@ -55,7 +55,7 @@ DO_DEB=0
 WITH_FX="${WITH_FX:-0}"
 WITH_X11="${WITH_X11:-0}"
 WITH_KNOBS="${WITH_KNOBS:-1}"
-PANEL_SCALE="${PANEL_SCALE:-1.25}"
+PANEL_SCALE="${PANEL_SCALE:-1.0}"
 PROGRESS=1
 while [[ $# -gt 0 ]]; do
   arg="$1"; shift

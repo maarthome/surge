@@ -1,4 +1,4 @@
-.surgext { width: 940px; height: 500px; background: #15181d; color: #d8dde6;
+.surgext { width: 1100px; height: 640px; background: #15181d; color: #d8dde6;
   font-family: "Helvetica Neue", Arial, sans-serif; border-radius: 6px; position: relative; user-select: none; }
 .surgext .sx-root { position: absolute; inset: 0; padding: 10px 14px; box-sizing: border-box; z-index: 25; }
 /* MOD's drag handle (full size, z-index 20) sits under the panel. Empty parts of the panel let
@@ -19,17 +19,8 @@
 .surgext button { min-width: 56px; font-size: 20px; }
 .surgext button:active { background: #ff9f2e; color: #111; }
 .surgext select { max-width: 170px; font-size: 13px; }
-.surgext .sx-body { display: flex; gap: 12px; margin-top: 10px; height: 410px; }
 .surgext .sx-card { background: #1c2128; border: 1px solid #2a3038; border-radius: 6px; padding: 8px 10px; box-sizing: border-box; }
 .surgext .sx-card h4 { margin: 0 0 4px 0; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #ff9f2e; font-weight: 600; }
-.surgext .sx-col-w { width: 300px; }
-.surgext .sx-col { display: flex; flex-direction: column; gap: 10px; }
-.surgext .sx-row { display: flex; gap: 4px; justify-content: space-around; }
-.surgext canvas.sx-graph { width: 100%; height: 62px; background: #11151a; border-radius: 4px; display: block; margin-bottom: 4px; }
-.surgext .sx-knob { width: 58px; text-align: center; touch-action: none; cursor: ns-resize; }
-.surgext .sx-knob canvas { width: 52px; height: 52px; display: block; margin: 0 auto; }
-.surgext .sx-knob .sx-label { font-size: 10px; color: #9aa4b2; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.surgext .sx-knob .sx-val { font-size: 11px; color: #e9edf3; font-variant-numeric: tabular-nums; }
 
 .surgext .sx-card select.sx-mine { width: 100%; max-width: none; height: 34px; margin: 2px 0 6px 0; }
 .surgext .sx-btnrow { display: flex; gap: 6px; }
@@ -45,3 +36,62 @@
 .surgext .sx-dlg-btns button { font-size: 14px; min-width: 90px; }
 .surgext .sx-dlg-btns button:disabled { opacity: .4; }
 .surgext .sx-top .sx-saveas { min-width: 96px; font-size: 14px; }
+
+/* ---- Surge-style layout: scene / filters row, mixer + envelopes + output row, macros row ---- */
+.surgext .sx-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; height: 560px; }
+.surgext .sx-r { display: flex; gap: 10px; }
+.surgext .sx-r1 { height: 214px; }
+.surgext .sx-r2 { height: 240px; }
+.surgext .sx-r3 { height: 86px; padding-right: 230px; }
+.surgext .sx-c-scene { width: 372px; }
+.surgext .sx-c-filt { flex: 1; min-width: 0; }
+.surgext .sx-c-mix { width: 300px; }
+.surgext .sx-c-eg { width: 270px; }
+.surgext .sx-c-out { flex: 1; min-width: 0; }
+.surgext .sx-c-mac { flex: 1; }
+.surgext .sx-line { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.surgext .sx-c { display: block; flex: 1 1 0; min-width: 0; }
+.surgext .sx-c-filt .sx-line .sx-c[data-c$="_type"] { flex: 0 0 150px; }
+.surgext .sx-c-filt .sx-line .sx-c[data-c$="_sub"] { flex: 0 0 74px; }
+.surgext .sx-c-filt .sx-line .sx-c[data-c="f2off"], .surgext .sx-c-filt .sx-line .sx-c[data-c="f2link"] { flex: 0 0 54px; }
+.surgext .sx-c-filt .sx-line .sx-c[data-c="kroot"] { flex: 0 0 96px; }
+.surgext .sx-w select { width: 100%; max-width: none; height: 26px; font-size: 12px; padding: 0 4px; }
+.surgext canvas.sx-graph { width: 100%; height: 60px; background: #11151a; border-radius: 4px; display: block; margin-bottom: 4px; }
+.surgext .sx-w-h { touch-action: none; }
+.surgext .sx-hh { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 3px; }
+.surgext .sx-w-h .sx-track { height: 10px; position: relative; background: #11151a; border: 1px solid #2f3742; border-radius: 5px; cursor: pointer; margin: 0 2px; }
+.surgext .sx-w-h .sx-fill { position: absolute; top: 0; bottom: 0; background: #ff9f2e; border-radius: 4px; opacity: .85; }
+.surgext .sx-w-h .sx-thumb { position: absolute; top: -4px; width: 4px; height: 16px; margin-left: -2px; background: #e9edf3; border-radius: 2px; }
+.surgext .sx-label { font-size: 10px; color: #9aa4b2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.surgext .sx-val { font-size: 10px; color: #e9edf3; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.surgext .sx-w-v { display: flex; flex-direction: column; align-items: center; height: 100%; touch-action: none; }
+.surgext .sx-w-v .sx-val { order: 0; font-size: 9px; height: 12px; }
+.surgext .sx-line { margin-bottom: 9px; }
+.surgext .sx-w-v .sx-track { order: 1; flex: 1; width: 14px; position: relative; background: #11151a; border: 1px solid #2f3742; border-radius: 7px; cursor: pointer; margin: 3px 0; min-height: 60px; }
+.surgext .sx-w-v .sx-label { order: 2; text-align: center; }
+.surgext .sx-w-v .sx-fill { position: absolute; left: 0; right: 0; background: #ff9f2e; border-radius: 6px; opacity: .85; }
+.surgext .sx-w-v .sx-thumb { position: absolute; left: -4px; right: -4px; height: 4px; margin-bottom: -2px; background: #e9edf3; border-radius: 2px; }
+.surgext .sx-faders { display: flex; gap: 4px; height: 110px; }
+.surgext .sx-faders .sx-c { flex: 1 1 0; }
+.surgext .sx-faders .sx-sp { flex: 0 0 8px; }
+.surgext .sx-c-eg .sx-c[data-c$="_mode"] { margin-top: 6px; }
+.surgext .sx-mixrow { display: flex; gap: 4px; height: 200px; }
+.surgext .sx-ch { flex: 1; display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.surgext .sx-ch > .sx-c:first-child { flex: 1 1 auto; min-height: 0; }
+.surgext .sx-ms { display: flex; gap: 2px; }
+.surgext .sx-ms .sx-c { flex: 1; }
+.surgext button.sx-tog, .surgext button.sx-route { height: 22px; min-width: 0; width: 100%; padding: 0; font-size: 10px; letter-spacing: .04em; }
+.surgext button.sx-tog.on { background: #ff9f2e; color: #111; border-color: #ff9f2e; }
+.surgext .sx-w-n { display: flex; flex-direction: column; }
+.surgext .sx-step { display: flex; align-items: center; gap: 2px; }
+.surgext .sx-step button { min-width: 0; width: 22px; height: 26px; padding: 0; font-size: 14px; }
+.surgext .sx-step span { flex: 1; text-align: center; font-size: 12px; color: #e9edf3; white-space: nowrap; }
+.surgext .sx-octs { display: flex; gap: 2px; }
+.surgext .sx-octs button { min-width: 0; flex: 1; height: 24px; padding: 0; font-size: 11px; }
+.surgext .sx-octs button.on { background: #ff9f2e; color: #111; border-color: #ff9f2e; }
+.surgext .sx-w-k { width: 58px; text-align: center; touch-action: none; cursor: ns-resize; margin: 0 auto; }
+.surgext .sx-w-k canvas { width: 40px; height: 40px; display: block; margin: 0 auto; }
+.surgext .sx-c-mac .sx-line { justify-content: space-around; margin: 0; }
+.surgext .sx-c-mac .sx-w-k .sx-label { text-align: center; }
+.surgext .sx-c-filt canvas.sx-g-flt { flex: 0 0 200px; width: 200px; height: 40px; margin: 0; }
+.surgext .sx-c-filt .sx-line .sx-c[data-c="wstype"] { flex: 0 0 150px; }
