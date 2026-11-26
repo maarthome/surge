@@ -108,13 +108,13 @@ def main():
     ap.add_argument("--restart", action="store_true")
     a = ap.parse_args()
 
-    import socket
+    import shlex, socket
     if not a.local and socket.gethostname().lower() != "pistomp":
         host = a.host or os.environ.get("PISTOMP", "pistomp@pistomp.local")
         args = [a.bundle, a.mode, "--local"] + (["--pistomp", a.pistomp] if a.pistomp else []) \
             + (["--restart"] if a.restart else [])
         print(f"==> running on {host}")
-        sys.exit(subprocess.run(["ssh", host, "python3", "-", *args],
+        sys.exit(subprocess.run(["ssh", host, "python3 - " + " ".join(shlex.quote(x) for x in args)],
                                 input=Path(__file__).read_text(), text=True).returncode)
 
     bundle = find_bundle(a.bundle)
