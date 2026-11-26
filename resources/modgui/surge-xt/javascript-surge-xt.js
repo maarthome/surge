@@ -8,6 +8,7 @@ function (event, funcs) {
 
     function secs(x) { return Math.pow(2, -8 + 13 * x); }
     function fmtTime(x) {
+        if (x < 0.002) return '0 ms';   // Surge's shortest envelope time is 2^-8 s = 3.9 ms; shown as 0
         var s = secs(x);
         return s < 1 ? (s * 1000).toFixed(s < 0.01 ? 1 : 0) + ' ms' : s.toFixed(s < 10 ? 2 : 1) + ' s';
     }
