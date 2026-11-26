@@ -93,8 +93,9 @@
 .surgext .sx-w-k canvas { width: 40px; height: 40px; display: block; margin: 0 auto; }
 .surgext .sx-c-mac .sx-line { justify-content: space-around; margin: 0; }
 .surgext .sx-c-mac .sx-w-k .sx-label { text-align: center; }
-.surgext .sx-c-filt canvas.sx-g-flt { flex: 0 0 200px; width: 200px; height: 40px; margin: 0; }
-.surgext .sx-c-filt .sx-line .sx-c[data-c="wstype"] { flex: 0 0 150px; }
+.surgext .sx-c-filt canvas.sx-g-flt { width: 100%; height: 50px; margin: 0; }
 .surgext .sx-top { padding-right: 210px; }
 .surgext .sx-f2 .sx-fill { background: #35b6ff; }
 .surgext .sx-f2.sx-w-s select, .surgext .sx-f2 select { border-color: #35b6ff; }
+.surgext .sx-c-filt .sx-line { margin-bottom: 7px; }
+.surgext .sx-c-scene .sx-line .sx-c[data-c="wstype"] { flex: 0 0 150px; }

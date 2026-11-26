@@ -168,20 +168,40 @@ function (event, funcs) {
         }
     }
 
-    function drawFilter(cv, cut, res) {
-        var c = cv.getContext('2d'), W = cv.width, H = cv.height, pad = 6;
-        c.clearRect(0, 0, W, H);
-        var fc = hz(cut), q = 0.707 + res * 9, dbMin = -48, dbMax = 24;
-        c.beginPath();
-        for (var i = 0; i <= 160; i++) {
-            var f = 20 * Math.pow(1000, i / 160), u = f / fc;
-            var mag = 1 / Math.sqrt(Math.pow(1 - u * u, 2) + Math.pow(u / q, 2));
-            var db = Math.max(dbMin, Math.min(dbMax, 20 * Math.log(mag) / Math.LN10));
-            var x = pad + (W - 2 * pad) * i / 160, y = pad + (H - 2 * pad) * (1 - (db - dbMin) / (dbMax - dbMin));
-            if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    // Frequency response of one filter from its type, cutoff and resonance (a schematic, not Surge's exact curve)
+    function filterKind(enumIdx) {
+        for (var i = 0; i < FILTERS.length; i++) {
+            if (FILTERS[i][0] === enumIdx) return { name: FILTERS[i][1], group: FILTERS[i][2] };
         }
-        c.strokeStyle = ORANGE; c.lineWidth = 2; c.stroke();
-        c.lineTo(W - pad, H - pad); c.lineTo(pad, H - pad); c.fillStyle = 'rgba(255,159,46,0.18)'; c.fill();
+        return { name: 'Off', group: '' };
+    }
+    function drawFilters(cv, K) {
+        var c = cv.getContext('2d'), W = cv.width, H = cv.height, pad = 6, dbMin = -48, dbMax = 24;
+        c.clearRect(0, 0, W, H);
+        function yOf(db) { return pad + (H - 2 * pad) * (1 - (Math.max(dbMin, Math.min(dbMax, db)) - dbMin) / (dbMax - dbMin)); }
+        c.strokeStyle = '#2a3038'; c.lineWidth = 1; c.setLineDash([3, 3]);
+        [-24, 0, 12].forEach(function (db) { c.beginPath(); c.moveTo(pad, yOf(db)); c.lineTo(W - pad, yOf(db)); c.stroke(); });
+        [100, 1000, 10000].forEach(function (f) { var x = pad + (W - 2 * pad) * Math.log(f / 20) / Math.log(1000); c.beginPath(); c.moveTo(x, pad); c.lineTo(x, H - pad); c.stroke(); });
+        c.setLineDash([]);
+        [[K.f1_type, K.cutoff, K.res, ORANGE], [K.f2_type, K.cutoff2, K.res2, BLUE]].forEach(function (f) {
+            var kind = filterKind(Math.round(f[0].v * (NFILT - 1)));
+            if (kind.group === '' || kind.group === 'Effect') return;     // off / comb / sample & hold: no curve
+            var steep = /24/.test(kind.name), fc = hz(f[1].v), q = 0.707 + f[2].v * 9;
+            c.beginPath();
+            for (var i = 0; i <= 200; i++) {
+                var fr = 20 * Math.pow(1000, i / 200), u = fr / fc;
+                var den = Math.sqrt(Math.pow(1 - u * u, 2) + Math.pow(u / q, 2)), mag;
+                if (kind.group === 'Highpass') mag = u * u / den;
+                else if (kind.group === 'Bandpass') mag = (u / q) / den;
+                else if (kind.group === 'Notch') mag = Math.abs(1 - u * u) / den;
+                else if (kind.group === 'Allpass') mag = 1;
+                else mag = 1 / den;
+                if (steep) mag = Math.pow(mag, 2);
+                var x = pad + (W - 2 * pad) * i / 200, y = yOf(20 * Math.log(Math.max(mag, 1e-6)) / Math.LN10);
+                if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+            }
+            c.strokeStyle = f[3]; c.lineWidth = 2; c.stroke();
+        });
     }
 
     function build(d) {
@@ -198,12 +218,13 @@ function (event, funcs) {
               '<div class="sx-card sx-c-scene"><h4>Scene</h4>' +
                 '<div class="sx-line"><span class="sx-c" data-c="oct"></span><span class="sx-c" data-c="pitch"></span><span class="sx-c" data-c="porta"></span></div>' +
                 '<div class="sx-line"><span class="sx-c" data-c="bend_dn"></span><span class="sx-c" data-c="bend_up"></span><span class="sx-c" data-c="playmode"></span></div>' +
-                '<div class="sx-line"><span class="sx-c" data-c="drift"></span><span class="sx-c" data-c="noisecol"></span></div></div>' +
+                '<div class="sx-line"><span class="sx-c" data-c="drift"></span><span class="sx-c" data-c="noisecol"></span></div>' +
+                '<div class="sx-line"><span class="sx-c" data-c="wstype"></span><span class="sx-c" data-c="wsdrive"></span></div></div>' +
               '<div class="sx-card sx-c-filt"><h4>Filters</h4>' +
                 '<div class="sx-line"><span class="sx-c" data-c="f1_type"></span><span class="sx-c" data-c="f1_sub"></span><span class="sx-c" data-c="cutoff"></span><span class="sx-c" data-c="res"></span><span class="sx-c" data-c="kt1"></span></div>' +
                 '<div class="sx-line"><span class="sx-c" data-c="f2_type"></span><span class="sx-c" data-c="f2_sub"></span><span class="sx-c" data-c="cutoff2"></span><span class="sx-c" data-c="res2"></span><span class="sx-c" data-c="kt2"></span></div>' +
                 '<div class="sx-line"><span class="sx-c" data-c="fconfig"></span><span class="sx-c" data-c="fbal"></span><span class="sx-c" data-c="f2off"></span><span class="sx-c" data-c="f2link"></span><span class="sx-c" data-c="hp"></span><span class="sx-c" data-c="kroot"></span></div>' +
-                '<div class="sx-line"><span class="sx-c" data-c="wstype"></span><span class="sx-c" data-c="wsdrive"></span><canvas class="sx-graph sx-g-flt" width="300" height="60"></canvas></div></div>' +
+                '<canvas class="sx-graph sx-g-flt" width="700" height="64"></canvas></div>' +
             '</div>' +
             '<div class="sx-r sx-r2">' +
               '<div class="sx-card sx-c-mix"><h4>Mixer</h4><div class="sx-mixrow">' +
@@ -211,10 +232,10 @@ function (event, funcs) {
                     return '<div class="sx-ch"><span class="sx-c" data-c="' + n + '"></span><div class="sx-ms"><span class="sx-c" data-c="mute_' + n + '"></span><span class="sx-c" data-c="solo_' + n + '"></span></div><span class="sx-c" data-c="route_' + n + '"></span></div>';
                 }).join('') +
                 '<div class="sx-ch"><span class="sx-c" data-c="pfg"></span></div></div></div>' +
-              '<div class="sx-card sx-c-eg"><h4>Filter EG</h4><canvas class="sx-graph sx-g-feg" width="300" height="76"></canvas>' +
+              '<div class="sx-card sx-c-eg"><h4>Filter EG</h4><canvas class="sx-graph sx-g-feg" width="300" height="60"></canvas>' +
                 '<div class="sx-faders"><span class="sx-c" data-c="feg_a"></span><span class="sx-c" data-c="feg_d"></span><span class="sx-c" data-c="feg_s"></span><span class="sx-c" data-c="feg_r"></span><span class="sx-sp"></span><span class="sx-c" data-c="envmod"></span><span class="sx-c" data-c="envmod2"></span></div>' +
                 '<span class="sx-c" data-c="feg_mode"></span></div>' +
-              '<div class="sx-card sx-c-eg"><h4>Amp EG</h4><canvas class="sx-graph sx-g-aeg" width="300" height="76"></canvas>' +
+              '<div class="sx-card sx-c-eg"><h4>Amp EG</h4><canvas class="sx-graph sx-g-aeg" width="300" height="60"></canvas>' +
                 '<div class="sx-faders"><span class="sx-c" data-c="aeg_a"></span><span class="sx-c" data-c="aeg_d"></span><span class="sx-c" data-c="aeg_s"></span><span class="sx-c" data-c="aeg_r"></span><span class="sx-sp"></span><span class="sx-c" data-c="vel"></span><span class="sx-c" data-c="gain"></span></div>' +
                 '<span class="sx-c" data-c="aeg_mode"></span></div>' +
               '<div class="sx-card sx-c-out"><h4>Scene output</h4><div class="sx-faders"><span class="sx-c" data-c="a_vol"></span><span class="sx-c" data-c="pan"></span><span class="sx-c" data-c="width"></span><span class="sx-c" data-c="fx1"></span><span class="sx-c" data-c="fx2"></span><span class="sx-sp"></span><span class="sx-c" data-c="g_vol"></span></div></div>' +
@@ -590,8 +611,8 @@ function (event, funcs) {
         var K = d.knobs, root = d.root;
         function g(pre) { return function (x) { return K[pre + '_' + x].v; }; }
         drawEnv(root.querySelector('.sx-g-aeg'), g('aeg'));
-        drawEnv(root.querySelector('.sx-g-feg'), g('feg'), [{ amt: K.envmod.v * 2 - 1, color: ORANGE }, { amt: K.envmod2.v * 2 - 1, color: BLUE }]);
-        var fc = root.querySelector('.sx-g-flt'); if (fc) drawFilter(fc, K.cutoff.v, K.res.v);
+        drawEnv(root.querySelector('.sx-g-feg'), g('feg'));
+        var fc = root.querySelector('.sx-g-flt'); if (fc) drawFilters(fc, K);
     }
 
     var d = event.data;
