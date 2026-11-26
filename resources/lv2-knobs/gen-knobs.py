@@ -11,12 +11,12 @@ import os, sys
 URI = "https://github.com/maarthome/surge/lv2/surge-xt-knobs"
 # symbol, name, midi cc, default (0..1); Amp Gain is -48..+48 dB, 0.5 = 0 dB
 KNOBS = [
-    ("cutoff", "Cutoff", 20, 0.5), ("reso", "Resonance", 21, 0.0), ("envamt", "Filter Env Amt", 22, 0.5),
+    # display order on the pi-Stomp (= LV2 port order): amp EG, filter EG, filter, osc levels, scene, rest, macros
     ("a_att", "Amp Attack", 23, 0.0), ("a_dec", "Amp Decay", 24, 0.5), ("a_sus", "Amp Sustain", 25, 1.0), ("a_rel", "Amp Release", 26, 0.3), ("a_gain", "Amp Gain", 36, 0.5),
     ("f_att", "Filter Attack", 27, 0.0), ("f_dec", "Filter Decay", 28, 0.5), ("f_sus", "Filter Sustain", 29, 0.0), ("f_rel", "Filter Release", 30, 0.3),
+    ("cutoff", "Cutoff", 20, 0.5), ("reso", "Resonance", 21, 0.0), ("envamt", "Filter Env Amt", 22, 0.5),
     ("osc1", "Osc 1 Level", 31, 0.8), ("osc2", "Osc 2 Level", 32, 0.0), ("osc3", "Osc 3 Level", 33, 0.0),
     ("level", "Scene Level", 34, 0.8), ("master", "Master Volume", 35, 0.8),
-] + [("macro%d" % (i + 1), "Macro %d" % (i + 1), 41 + i, 0.0) for i in range(8)] + [
     # the rest of the continuous controls of the MOD panel (CC 52-63, 70-81)
     ("pitch", "Pitch", 52, 0.5), ("porta", "Portamento", 53, 0.0), ("bend_dn", "Bend Down", 54, 0.08), ("bend_up", "Bend Up", 55, 0.08),
     ("drift", "Osc Drift", 56, 0.0), ("noisecol", "Noise Color", 57, 0.5),
@@ -25,7 +25,7 @@ KNOBS = [
     ("hp", "Highpass", 70, 0.0), ("wsdrive", "Waveshaper Drive", 71, 0.5),
     ("ring12", "Ring 1x2 Level", 72, 0.0), ("ring23", "Ring 2x3 Level", 73, 0.0), ("noise", "Noise Level", 74, 0.0), ("pfg", "Mixer Gain", 75, 0.5),
     ("vel", "Amp Velocity", 76, 1.0), ("pan", "Pan", 77, 0.5), ("width", "Width", 78, 0.5), ("fx1", "FX 1 Send", 79, 0.0), ("fx2", "FX 2 Send", 80, 0.0),
-]
+] + [("macro%d" % (i + 1), "Macro %d" % (i + 1), 41 + i, 0.0) for i in range(8)]
 
 
 # Surge parameter (storage name) behind every knob, for the control ports of Surge XT itself
