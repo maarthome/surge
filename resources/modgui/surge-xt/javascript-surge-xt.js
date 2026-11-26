@@ -336,9 +336,8 @@ function (event, funcs) {
         }
         function show(running) {
             d.x11 = running;
-            clearInterval(d.x11Timer);
-            // while the window is open, edits made there change this plugin: keep the knobs current
-            if (running) d.x11Timer = setInterval(function () { Object.keys(d.knobs).forEach(function (k) { funcs.patch_get(d.knobs[k].uri); }); }, 1500); $b.toggleClass('on', !!running).html(running ? 'GUI on &#9632;' : 'GUI &#8599;'); }
+            $b.toggleClass('on', !!running).html(running ? 'GUI on &#9632;' : 'GUI &#8599;');
+        }
         call('/status', function (r) { if (r) show(r.running); });
         $b.on('click', function () {
             if (d.x11) { call('/stop', function (r) { show(r ? r.running : false); status(d, 'GUI stopped'); }); return; }
@@ -360,6 +359,7 @@ function (event, funcs) {
     }
 
     function setKnob(d, k, v, send) {
+        if (send) k.local = Date.now();
         k.v = v;
         drawKnob(k.cv, v, k.bi);
         k.txt.textContent = k.fmt(v);
@@ -425,7 +425,7 @@ function (event, funcs) {
             return;
         }
         for (var key in d.knobs) {
-            if (d.knobs[key].uri === event.uri) { setKnob(d, d.knobs[key], event.value, false); break; }
+            if (d.knobs[key].uri === event.uri) { if (d.knobs[key].local && Date.now() - d.knobs[key].local < 1500) break; setKnob(d, d.knobs[key], event.value, false); break; }
         }
     }
 }

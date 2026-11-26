@@ -87,7 +87,7 @@ def start_all():
     missing = [c for c in ("Xvfb", "x11vnc", "websockify") if not shutil.which(c)]
     if missing or not novnc_dir():
         return "missing: " + " ".join(missing + ([] if novnc_dir() else ["novnc"])) + \
-               " (sudo apt install xvfb x11vnc novnc websockify jalv)"
+               " (sudo apt install xvfb x11vnc novnc websockify jalv matchbox-window-manager)"
     try:
         os.remove(LOG)
     except OSError:
@@ -105,6 +105,10 @@ def start_all():
     time.sleep(1.5)
     spawn(["Xvfb", DISP, "-screen", "0", SIZE, "-nolisten", "tcp"])
     time.sleep(1)
+    # a minimal window manager without title bar: it makes the Surge window fill the whole screen
+    if shutil.which("matchbox-window-manager"):
+        spawn(["matchbox-window-manager", "-display", DISP, "-use_titlebar", "no", "-use_cursor", "no"])
+        time.sleep(0.5)
     spawn([GUI], env=env)
     cmd = ["x11vnc", "-display", DISP, "-forever", "-shared", "-rfbport", str(VNC_PORT), "-quiet"]
     cmd += ["-rfbauth", PASSWD] if PASSWD else ["-nopw"]
