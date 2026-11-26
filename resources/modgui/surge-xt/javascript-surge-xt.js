@@ -3,6 +3,7 @@ function (event, funcs) {
     var BASE = 'https://surge-synthesizer.github.io/lv2/surge-xt:';
     var PATCHES = /*__PATCHES__*/[];          // [[category, name], ...] in plugin order
     var PATCH_PARAM = BASE + 'surgext-mod-patch';
+    var MACRO_BI_PARAM = BASE + 'surgext-mod-macro-bipolar';   // bit n set = macro n+1 is bipolar
     var ORANGE = '#ff9f2e';
 
     function secs(x) { return Math.pow(2, -8 + 13 * x); }
@@ -146,7 +147,7 @@ function (event, funcs) {
                     setKnob(d, k, nv, true);
                 });
                 el.addEventListener('pointerup', function () { drag = null; });
-                el.addEventListener('dblclick', function () { setKnob(d, k, def[3], true); });
+                el.addEventListener('dblclick', function () { setKnob(d, k, (k.bi && key.charAt(0) === 'm') ? 0.5 : def[3], true); });
             });
         });
         var $cat = $(root).find('.sx-cat'), $pat = $(root).find('.sx-pat');
@@ -358,6 +359,17 @@ function (event, funcs) {
         });
     }
 
+    // macros that are bipolar in Surge run from -100% to +100%, the others from 0 to 100%
+    function applyMacroModes(d) {
+        var mask = Math.round((d.values[MACRO_BI_PARAM] || 0) * 255);
+        for (var m = 0; m < 8; m++) {
+            var k = d.knobs && d.knobs['m' + m];
+            if (!k) continue;
+            var bi = (mask & (1 << m)) !== 0;
+            if (k.bi !== bi) { k.bi = bi; k.fmt = bi ? fmtBi : fmtPct; setKnob(d, k, k.v, false); }
+        }
+    }
+
     function setKnob(d, k, v, send) {
         if (send) k.local = Date.now();
         k.v = v;
@@ -413,6 +425,7 @@ function (event, funcs) {
         }
         buildItems(d, 'f:' + fidx);
         build(d);
+        applyMacroModes(d);
     } else if (event.type === 'change' && event.uri && d.knobs) {
         if (event.uri === PATCH_PARAM) {
             // a saved preset is the current sound: its own state wins over the stored patch number
@@ -424,6 +437,7 @@ function (event, funcs) {
             }
             return;
         }
+        if (event.uri === MACRO_BI_PARAM) { d.values[MACRO_BI_PARAM] = event.value; applyMacroModes(d); return; }
         for (var key in d.knobs) {
             if (d.knobs[key].uri === event.uri) { if (d.knobs[key].local && Date.now() - d.knobs[key].local < 1500) break; setKnob(d, d.knobs[key], event.value, false); break; }
         }

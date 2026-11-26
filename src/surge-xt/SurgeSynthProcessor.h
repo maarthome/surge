@@ -196,7 +196,11 @@ struct SurgeMacroToJuceParamAdapter : public SurgeBaseParam
          * So basically hide the smoothing from the externalizaion of the
          * parameter to meet th econstraint
          */
-        return s->getMacroParameterTarget01(macroNum);
+        float t = s->getMacroParameterTarget01(macroNum);
+        // the target of a bipolar macro runs from -1 to 1, the parameter from 0 to 1
+        if (s->storage.getPatch().scene[0].modsources[ms_ctrl1 + macroNum]->is_bipolar())
+            t = 0.5f + 0.5f * t;
+        return std::max(0.f, std::min(1.f, t));
     }
     float getValueForText(const juce::String &text) const override
     {
@@ -224,6 +228,36 @@ struct SurgeMacroToJuceParamAdapter : public SurgeBaseParam
     SurgeSynthesizer *s;
     SurgeSynthProcessor *ssp;
     long macroNum;
+};
+
+struct SurgeModMacroBipolarParameter : public juce::RangedAudioParameter
+{
+    // Read-only helper for the MOD panel: bit n is set when macro n+1 is bipolar (value = mask / 255)
+    explicit SurgeModMacroBipolarParameter(std::function<float()> getFn)
+        : getFn(std::move(getFn)), range(0.f, 1.f, 0.f),
+          juce::RangedAudioParameter(juce::ParameterID("surgext-mod-macro-bipolar", 1),
+                                     "MOD Macro Bipolar Mask",
+                                     juce::AudioProcessorParameterWithIDAttributes())
+    {
+    }
+
+    juce::String getName(int i) const override
+    {
+        return juce::String("MOD Macro Bipolar Mask").substring(0, i);
+    }
+    float getValue() const override { return getFn(); }
+    float getValueForText(const juce::String &text) const override
+    {
+        return (float)std::max(std::min(std::atof(text.toRawUTF8()), 1.0), 0.0);
+    }
+    float getDefaultValue() const override { return 0.0; }
+    void setValue(float) override {}
+    juce::String getText(float v, int) const override { return juce::String((int)std::lround(v * 255.f)); }
+    bool isAutomatable() const override { return false; }
+    const juce::NormalisableRange<float> &getNormalisableRange() const override { return range; }
+
+    std::function<float()> getFn;
+    juce::NormalisableRange<float> range;
 };
 
 struct SurgeBypassParameter : public juce::RangedAudioParameter
@@ -574,6 +608,7 @@ class SurgeSynthProcessor : public juce::AudioProcessor,
     std::thread syncThread;
     std::atomic<bool> syncStop{false};
     void syncLoop();
+    juce::AudioProcessorParameter *modMacroBipolar{nullptr};
     std::vector<int> modPatchList;
     void buildModPatchList();
     void selectModPatch(int idx);

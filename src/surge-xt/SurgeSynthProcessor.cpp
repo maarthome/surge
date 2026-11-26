@@ -171,6 +171,15 @@ SurgeSynthProcessor::SurgeSynthProcessor()
         parent->addChild(std::make_unique<SurgeModPatchParameter>(
             [this]() { return (int)modPatchList.size(); },
             [this](int idx) { selectModPatch(idx); }));
+        auto mb = std::make_unique<SurgeModMacroBipolarParameter>([this]() {
+            int mask = 0;
+            for (int i = 0; i < n_customcontrollers && i < 8; ++i)
+                if (surge->storage.getPatch().scene[0].modsources[ms_ctrl1 + i]->is_bipolar())
+                    mask |= 1 << i;
+            return (float)mask / 255.f;
+        });
+        modMacroBipolar = mb.get();
+        parent->addChild(std::move(mb));
     }
 
     addParameterGroup(std::move(parent));
@@ -1977,6 +1986,8 @@ void SurgeSynthProcessor::syncLoop()
         }
         for (auto *m : macrosById)
             panelParams.emplace_back(m, m->getValue());
+        if (modMacroBipolar)
+            panelParams.emplace_back(modMacroBipolar, modMacroBipolar->getValue());
     }
     auto notifyPanel = [&]() {
         for (auto &pp : panelParams)
