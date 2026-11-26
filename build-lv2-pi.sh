@@ -14,7 +14,7 @@
 #   --with-fx                      also build/install "Surge XT Effects" (off by default)
 #                                  (also settable as WITH_FX=1)
 #   --x11                          with --deploy: also install the "GUI" switch helper (VNC + web page)
-#                                  on the pi-Stomp: apt xvfb x11vnc novnc websockify jalv jackd2 matchbox + a service
+#                                  on the pi-Stomp: apt xvfb x11vnc novnc websockify jalv matchbox + a service
 #                                  (also settable as WITH_X11=1)
 #   --no-progress                  show the raw compiler output instead of the progress bar
 #   --panel-scale N                size of the MOD UI panel, 1.0 = 940x500 px (default 1.25)
@@ -297,7 +297,7 @@ deploy_pistomp() {
     ssh "$PISTOMP" "mkdir -p ~/.local/share/surge-xt-x11 ~/.config/systemd/user"
     rsync -as "$REPO_DIR/resources/modgui/surge-xt/x11/" "$PISTOMP:.local/share/surge-xt-x11/"
     ssh "$PISTOMP" 'mv ~/.local/share/surge-xt-x11/surge-x11-helper.service ~/.config/systemd/user/ && chmod +x ~/.local/share/surge-xt-x11/surge-x11-*'
-    ssh -t "$PISTOMP" 'sudo apt-get install -y xvfb x11vnc novnc websockify jalv jackd2 matchbox-window-manager && sudo loginctl enable-linger "$USER" && systemctl --user daemon-reload && systemctl --user enable --now surge-x11-helper.service && systemctl --user restart surge-x11-helper.service' \
+    ssh -t "$PISTOMP" 'sudo apt-get install -y --no-remove xvfb x11vnc novnc websockify jalv matchbox-window-manager && sudo loginctl enable-linger "$USER" && systemctl --user daemon-reload && systemctl --user enable --now surge-x11-helper.service && systemctl --user restart surge-x11-helper.service' \
       || echo "    WARNING: GUI helper install failed - see the messages above"
   fi
   echo "==> Restarting MOD on the pi-Stomp so it finds the new plugins"

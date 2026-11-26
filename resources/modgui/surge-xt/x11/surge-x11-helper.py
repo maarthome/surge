@@ -96,7 +96,7 @@ def start_all():
     sync_on()
     if not shutil.which("jackd"):
         stop_all()
-        return "missing: jackd (sudo apt install jackd2)"
+        return "missing: jackd (should come with jack2-pistomp; do NOT install jackd2, it replaces the pi-Stomp JACK)"
     # the window is silent, so it gets its own private dummy JACK server; it needs no access to
     # the sound card or to the JACK server that MOD uses
     env["JACK_DEFAULT_SERVER"] = "surgeedit"
