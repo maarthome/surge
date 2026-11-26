@@ -56,7 +56,7 @@ DO_BUILD=1
 DO_DEB=0
 WITH_FX="${WITH_FX:-0}"
 WITH_X11="${WITH_X11:-0}"
-WITH_KNOBS="${WITH_KNOBS:-1}"
+WITH_KNOBS="${WITH_KNOBS:-0}"   # MIDI-CC Knobs plugin; obsolete now that Surge XT has its own control ports
 PANEL_SCALE="${PANEL_SCALE:-1.0}"
 PROGRESS=1
 INSTALL_PATCHES="${INSTALL_PATCHES:-ask}"
@@ -381,6 +381,19 @@ if [[ $DO_BUILD -eq 1 ]]; then
     SWAP_ACTIVE=1
     free -h
   fi
+
+  echo "==> Adding LV2 control ports (48 knobs) to Surge XT's own TTL"
+  JUCE_DIR="$REPO_DIR/libs/JUCE"
+  JUCE_PATCH="$REPO_DIR/resources/patches/juce-lv2-control-ports.patch"
+  if git -C "$JUCE_DIR" apply --check "$JUCE_PATCH" 2>/dev/null; then
+    git -C "$JUCE_DIR" apply "$JUCE_PATCH"
+  elif git -C "$JUCE_DIR" apply --check -R "$JUCE_PATCH" 2>/dev/null; then
+    echo "    (patch already applied)"
+  else
+    echo "WARNING: JUCE control-port patch does not apply; building without it" >&2
+  fi
+  python3 "$REPO_DIR/resources/lv2-knobs/gen-knobs.py" \
+    --header "$JUCE_DIR/modules/juce_audio_plugin_client/surge_lv2_controls.h"
 
   echo "==> Configuring (LV2 on, standalone and VST3 off)"
   cmake -S "$REPO_DIR" -B "$BUILD_DIR" \
