@@ -2054,7 +2054,7 @@ void SurgeSynthProcessor::syncLoop()
                 auto *par = kv.second ? kv.second->p : nullptr;
                 if (!par || par->midictrl >= 0)
                     continue;
-                auto sn = par->get_storage_name();
+                const std::string sn = par->get_storage_name(); // (a const char * would compare addresses)
                 for (auto &m : defaultKnobMap)
                 {
                     if (sn != m.name)
@@ -2072,6 +2072,14 @@ void SurgeSynthProcessor::syncLoop()
                 }
             }
         }
+
+        // macros that the patch left without a controller listen to CC 41-48 (what the Knobs plugin sends)
+        for (int i = 0; i < n_customcontrollers && i < 8; ++i)
+            if (surge->storage.controllers[i] < 0)
+            {
+                surge->storage.controllers[i] = 41 + i;
+                surge->storage.controllers_chan[i] = -1;
+            }
 
         // diagnostic: every incoming MIDI controller is noted in /tmp/surge-cc.log (this plugin instance only)
         {
