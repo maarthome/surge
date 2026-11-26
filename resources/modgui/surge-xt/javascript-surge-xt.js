@@ -101,7 +101,7 @@ function (event, funcs) {
 
     function build(d) {
         var icon = d.icon, root = icon.find('.sx-root')[0];
-        var h = '<div class="sx-top"><span class="sx-title">SURGE XT</span>' +
+        var h = '<div class="sx-top"><input class="sx-search" type="text" placeholder="Search patches&hellip;" spellcheck="false" autocomplete="off">' +
             '<button class="sx-prev">&#9664;</button>' +
             '<select class="sx-cat"></select>' +
             '<select class="sx-pat"></select>' +
@@ -154,7 +154,29 @@ function (event, funcs) {
             d.items.forEach(function (it, i) { if (first < 0 && it.cat === c) first = i; });
             if (first >= 0) choose(d, first);
         });
-        $pat.on('change', function () { choose(d, parseInt($pat.val(), 10)); });
+        $pat.on('change', function () { var v = parseInt($pat.val(), 10); if (v < 0) return; $search.val(''); choose(d, v); });
+        // type to filter: all words must occur in "category name"; results replace the patch list
+        var $search = $(root).find('.sx-search');
+        function runSearch() {
+            var words = $search.val().toLowerCase().split(/\s+/).filter(Boolean);
+            if (!words.length) { renderLists(d); return; }
+            var hits = [], total = 0;
+            d.items.forEach(function (it, i) {
+                var hay = (it.cat + ' ' + it.name).toLowerCase();
+                if (words.every(function (w) { return hay.indexOf(w) >= 0; })) { total++; if (hits.length < 300) hits.push(i); }
+            });
+            d.hits = hits;
+            $pat.html('<option value="-1">' + total + ' match' + (total === 1 ? '' : 'es') + (total > 300 ? ' (showing 300)' : '') + '</option>' +
+                hits.map(function (i) { return '<option value="' + i + '">' + esc(d.items[i].name + '  \u00b7  ' + d.items[i].cat) + '</option>'; }).join(''));
+            $pat.val(hits.length ? String(hits[0]) : '-1');
+        }
+        $search.on('input', runSearch)
+            .on('keydown', function (e) {
+                e.stopPropagation();
+                if (e.key === 'Enter' && d.hits && d.hits.length && $search.val()) { var p = d.hits[0]; $search.val(''); choose(d, parseInt($pat.val(), 10) >= 0 ? parseInt($pat.val(), 10) : p); }
+                else if (e.key === 'Escape') { $search.val(''); renderLists(d); }
+            })
+            .on('keyup keypress', function (e) { e.stopPropagation(); });
         $(root).find('.sx-prev').on('click', function () { choose(d, (d.pos - 1 + d.items.length) % d.items.length); });
         $(root).find('.sx-next').on('click', function () { choose(d, (d.pos + 1) % d.items.length); });
         wirePresets(d);

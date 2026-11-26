@@ -202,14 +202,11 @@ SurgeSynthProcessor::SurgeSynthProcessor()
 
 void SurgeSynthProcessor::buildModPatchList()
 {
-    // Factory patches ordered by their path below patches_factory, compared byte-wise after
-    // ASCII-lowercasing. resources/modgui/gen-patchlist.py builds the names the panel shows with
-    // exactly this rule, so keep the two in sync.
+    // Factory patches first, then the 3rd party patches. Each group is ordered by its path below
+    // patches_factory / patches_3rdparty, compared byte-wise after ASCII-lowercasing.
+    // resources/modgui/surge-xt/gen-patchlist.py builds the names the panel shows with exactly
+    // this rule, so keep the two in sync.
     modPatchList.clear();
-
-    auto factoryRoot = (surge->storage.datapath / "patches_factory").generic_string();
-    if (!factoryRoot.empty() && factoryRoot.back() != '/')
-        factoryRoot += '/';
 
     auto lowered = [](std::string s) {
         for (auto &ch : s)
@@ -218,17 +215,24 @@ void SurgeSynthProcessor::buildModPatchList()
         return s;
     };
 
-    std::vector<std::pair<std::string, int>> keyed;
-    for (size_t i = 0; i < surge->storage.patch_list.size(); ++i)
+    for (const char *group : {"patches_factory", "patches_3rdparty"})
     {
-        auto full = surge->storage.patch_list[i].path.generic_string();
-        if (full.compare(0, factoryRoot.size(), factoryRoot) == 0)
-            keyed.emplace_back(lowered(full.substr(factoryRoot.size())), (int)i);
-    }
+        auto root = (surge->storage.datapath / group).generic_string();
+        if (!root.empty() && root.back() != '/')
+            root += '/';
 
-    std::sort(keyed.begin(), keyed.end());
-    for (auto &k : keyed)
-        modPatchList.push_back(k.second);
+        std::vector<std::pair<std::string, int>> keyed;
+        for (size_t i = 0; i < surge->storage.patch_list.size(); ++i)
+        {
+            auto full = surge->storage.patch_list[i].path.generic_string();
+            if (full.compare(0, root.size(), root) == 0)
+                keyed.emplace_back(lowered(full.substr(root.size())), (int)i);
+        }
+
+        std::sort(keyed.begin(), keyed.end());
+        for (auto &k : keyed)
+            modPatchList.push_back(k.second);
+    }
 }
 
 void SurgeSynthProcessor::selectModPatch(int idx)
