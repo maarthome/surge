@@ -26,3 +26,17 @@
 .surgext .sx-knob canvas { width: 52px; height: 52px; display: block; margin: 0 auto; }
 .surgext .sx-knob .sx-label { font-size: 10px; color: #9aa4b2; margin-top: 1px; }
 .surgext .sx-knob .sx-val { font-size: 11px; color: #e9edf3; font-variant-numeric: tabular-nums; }
+
+.surgext .sx-card select.sx-mine { width: 100%; max-width: none; height: 34px; margin: 2px 0 6px 0; }
+.surgext .sx-btnrow { display: flex; gap: 6px; }
+.surgext .sx-btnrow button { flex: 1; font-size: 14px; }
+.surgext .sx-status { font-size: 11px; color: #ff9f2e; min-height: 14px; margin-top: 6px; }
+.surgext .sx-modal { position: absolute; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 50; pointer-events: auto; }
+.surgext .sx-modal[hidden] { display: none; }
+.surgext .sx-dialog { background: #1c2128; border: 1px solid #ff9f2e; border-radius: 8px; padding: 16px 18px; width: 380px; }
+.surgext .sx-dlg-title { font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: #ff9f2e; margin-bottom: 10px; }
+.surgext .sx-name-in { width: 100%; box-sizing: border-box; height: 40px; background: #11151a; color: #e9edf3; border: 1px solid #353d48; border-radius: 4px; font-size: 16px; padding: 0 10px; }
+.surgext .sx-hint { min-height: 16px; margin: 6px 0 10px; font-size: 11px; color: #ff9f2e; }
+.surgext .sx-dlg-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.surgext .sx-dlg-btns button { font-size: 14px; min-width: 90px; }
+.surgext .sx-dlg-btns button:disabled { opacity: .4; }

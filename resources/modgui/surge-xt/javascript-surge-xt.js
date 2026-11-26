@@ -120,7 +120,13 @@ function (event, funcs) {
             '</div>' +
             '<div class="sx-col" style="flex:1">' +
               '<div class="sx-card"><h4>Macros</h4><div class="sx-row" data-k="m0,m1,m2,m3"></div><div class="sx-row" data-k="m4,m5,m6,m7"></div></div>' +
-            '</div></div>';
+              '<div class="sx-card"><h4>My presets</h4><select class="sx-mine"></select>' +
+                '<div class="sx-btnrow"><button class="sx-saveas">Save as&hellip;</button></div><div class="sx-status"></div></div>' +
+            '</div></div>' +
+            '<div class="sx-modal" hidden><div class="sx-dialog"><div class="sx-dlg-title">Save preset as</div>' +
+              '<input class="sx-name-in" type="text" maxlength="60" spellcheck="false">' +
+              '<div class="sx-hint"></div>' +
+              '<div class="sx-dlg-btns"><button class="sx-cancel">Cancel</button><button class="sx-ok">Save</button></div></div></div>';
         root.innerHTML = h;
         d.root = root; d.knobs = {};
         $(root).find('.sx-row').each(function () {
@@ -157,9 +163,131 @@ function (event, funcs) {
         $pat.on('change', function () { choose(d, parseInt($pat.val(), 10)); });
         $(root).find('.sx-prev').on('click', function () { choose(d, (d.patchIdx - 1 + PATCHES.length) % PATCHES.length); });
         $(root).find('.sx-next').on('click', function () { choose(d, (d.patchIdx + 1) % PATCHES.length); });
+        wirePresets(d);
         Object.keys(d.knobs).forEach(function (key) { setKnob(d, d.knobs[key], d.knobs[key].v, false); });
         showPatch(d);
         redrawGraphs(d);
+    }
+
+    // ---- saved presets (MOD's own preset system: saves the complete Surge state) ----
+    function readSavedPresets(d, settings) {
+        var list = [];
+        try {
+            settings.find('.mod-preset-user [mod-role=enumeration-option]').each(function () {
+                var el = $(this), uri = el.attr('mod-uri');
+                if (uri) list.push({ uri: uri, path: el.attr('mod-path') || '', name: $.trim(el.text()) });
+            });
+        } catch (e) { }
+        return list;
+    }
+
+    function status(d, msg) {
+        var el = d.root.querySelector('.sx-status');
+        el.textContent = msg;
+        clearTimeout(d.statusTimer);
+        d.statusTimer = setTimeout(function () { el.textContent = ''; }, 4000);
+    }
+
+    function refreshMine(d, selectUri) {
+        var sel = $(d.root).find('.sx-mine'), html = '<option value="">- saved presets (' + d.mine.length + ') -</option>';
+        d.mine.forEach(function (m) {
+            html += '<option value="' + $('<div>').text(m.uri).html().replace(/"/g, '&quot;') + '">' + $('<div>').text(m.name).html() + '</option>';
+        });
+        sel.html(html);
+        sel.val(selectUri || '');
+    }
+
+    function refreshAll(d) {
+        // ask the host for every value again, e.g. after a preset or patch was loaded
+        [350, 1200].forEach(function (ms) {
+            setTimeout(function () {
+                Object.keys(d.knobs).forEach(function (k) { funcs.patch_get(d.knobs[k].uri); });
+            }, ms);
+        });
+    }
+
+    function currentName(d) {
+        if (d.userName) return d.userName;
+        var p = PATCHES[d.patchIdx];
+        return p ? p[1] : 'Surge XT';
+    }
+
+    function openSaveDialog(d) {
+        var modal = d.root.querySelector('.sx-modal'), input = modal.querySelector('.sx-name-in');
+        input.value = currentName(d);
+        updateHint(d);
+        modal.hidden = false;
+        input.focus();
+        input.select();
+    }
+
+    function updateHint(d) {
+        var modal = d.root.querySelector('.sx-modal'), name = $.trim(modal.querySelector('.sx-name-in').value);
+        var exists = d.mine.some(function (m) { return m.name === name; });
+        modal.querySelector('.sx-hint').textContent = !name ? 'Give the preset a name' :
+            (exists ? 'A preset with this name exists - it will be replaced' : '');
+        modal.querySelector('.sx-ok').disabled = !name;
+    }
+
+    function doSave(d) {
+        var modal = d.root.querySelector('.sx-modal'), name = $.trim(modal.querySelector('.sx-name-in').value);
+        if (!name) return;
+        modal.hidden = true;
+        var existing = null;
+        d.mine.forEach(function (m) { if (m.name === name && m.path) existing = m; });
+        var url, data;
+        if (existing) {
+            url = '/effect/preset/save_replace/' + d.instance;
+            data = { uri: existing.uri, bundle: existing.path, name: name };
+        } else {
+            url = '/effect/preset/save_new/' + d.instance;
+            data = { name: name };
+        }
+        $.ajax({
+            url: url, data: data, dataType: 'json', cache: false,
+            success: function (resp) {
+                if (!resp || !resp.ok) { status(d, 'Saving failed'); return; }
+                if (existing) { existing.uri = resp.uri; existing.path = resp.bundle; }
+                else { existing = { uri: resp.uri, path: resp.bundle, name: name }; d.mine.push(existing); }
+                d.userName = name;
+                refreshMine(d, existing.uri);
+                showPatch(d);
+                status(d, 'Saved "' + name + '"');
+            },
+            error: function () { status(d, 'Saving failed'); }
+        });
+    }
+
+    function loadSaved(d, uri) {
+        var item = null;
+        d.mine.forEach(function (m) { if (m.uri === uri) item = m; });
+        if (!item) return;
+        $.ajax({
+            url: '/effect/preset/load/' + d.instance, data: { uri: uri }, dataType: 'json', cache: false,
+            success: function () {
+                d.userName = item.name;
+                showPatch(d);
+                status(d, 'Loaded "' + item.name + '"');
+                refreshAll(d);
+            },
+            error: function () { status(d, 'Loading failed'); }
+        });
+    }
+
+    function wirePresets(d) {
+        var $r = $(d.root);
+        refreshMine(d, '');
+        $r.find('.sx-saveas').on('click', function () { openSaveDialog(d); });
+        $r.find('.sx-mine').on('change', function () { var v = $(this).val(); if (v) loadSaved(d, v); });
+        $r.find('.sx-cancel').on('click', function () { d.root.querySelector('.sx-modal').hidden = true; });
+        $r.find('.sx-ok').on('click', function () { doSave(d); });
+        $r.find('.sx-name-in').on('input', function () { updateHint(d); })
+            .on('keydown', function (e) {
+                e.stopPropagation();
+                if (e.key === 'Enter') { doSave(d); }
+                else if (e.key === 'Escape') { d.root.querySelector('.sx-modal').hidden = true; }
+            })
+            .on('keyup keypress', function (e) { e.stopPropagation(); });
     }
 
     function setKnob(d, k, v, send) {
@@ -176,12 +304,19 @@ function (event, funcs) {
         var v = PATCHES.length > 1 ? idx / (PATCHES.length - 1) : 0;
         d.values[PATCH_PARAM] = v;
         funcs.patch_set(PATCH_PARAM, 'f', v);
+        d.userName = null;
         showPatch(d);
+        refreshAll(d);
     }
 
     function showPatch(d) {
         var root = d.root;
         if (!root) return;
+        if (d.userName) {
+            root.querySelector('.sx-name').textContent = d.userName;
+            root.querySelector('.sx-sub').textContent = 'My preset';
+            return;
+        }
         var p = PATCHES[d.patchIdx];
         if (!p) { root.querySelector('.sx-name').textContent = 'Surge XT'; return; }
         root.querySelector('.sx-name').textContent = p[1];
@@ -201,7 +336,9 @@ function (event, funcs) {
 
     var d = event.data;
     if (event.type === 'start') {
-        d.icon = event.icon; d.pending = {}; d.timer = null; d.values = {}; d.patchIdx = 0;
+        d.icon = event.icon; d.pending = {}; d.timer = null; d.values = {}; d.patchIdx = 0; d.userName = null;
+        d.instance = event.icon.attr('mod-instance') || '';
+        d.mine = readSavedPresets(d, event.settings);
         (event.parameters || []).forEach(function (p) { d.values[p.uri] = p.value; });
         if (d.values[PATCH_PARAM] !== undefined && PATCHES.length > 1) {
             d.patchIdx = Math.round(d.values[PATCH_PARAM] * (PATCHES.length - 1));
