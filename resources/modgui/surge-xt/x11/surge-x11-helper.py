@@ -64,9 +64,14 @@ def stop_all():
     procs = []
 
 
+LOG = "/tmp/surge-x11.log"
+
+
 def spawn(cmd, env=None):
-    p = subprocess.Popen(cmd, env=env, start_new_session=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    log = open(LOG, "a")
+    log.write("\n$ %s\n" % " ".join(cmd))
+    log.flush()
+    p = subprocess.Popen(cmd, env=env, start_new_session=True, stdout=log, stderr=log)
     procs.append(p)
     return p
 
@@ -83,6 +88,10 @@ def start_all():
     if missing or not novnc_dir():
         return "missing: " + " ".join(missing + ([] if novnc_dir() else ["novnc"])) + \
                " (sudo apt install xvfb x11vnc novnc websockify jalv)"
+    try:
+        os.remove(LOG)
+    except OSError:
+        pass
     env = dict(os.environ, DISPLAY=DISP, SURGE_SYNC_ROLE="editor", SURGE_SYNC_DIR=SYNC_DIR)
     sync_on()
     spawn(["Xvfb", DISP, "-screen", "0", SIZE, "-nolisten", "tcp"])
@@ -94,8 +103,13 @@ def start_all():
     spawn(["websockify", "--web", novnc_dir(), str(WEB_PORT), "localhost:%d" % VNC_PORT])
     time.sleep(2)
     if not running():
+        dead = [p.args[0] for p in procs if not alive(p)]
+        try:
+            tail = " | ".join([l.strip() for l in open(LOG).read().splitlines() if l.strip()][-6:])
+        except OSError:
+            tail = ""
         stop_all()
-        return "could not start (is jalv installed? Surge XT plugin present in ~/.lv2?)"
+        return "could not start: %s stopped. Log (%s): %s" % (", ".join(os.path.basename(str(d)) for d in dead), LOG, tail)
     return None
 
 
