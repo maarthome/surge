@@ -138,7 +138,7 @@ function (event, funcs) {
         var c = cv.getContext('2d'), W = cv.width, H = cv.height, pad = 6;
         c.clearRect(0, 0, W, H);
         var a = g('a'), d = g('d'), s = g('s'), r = g('r');
-        var wa = 0.06 + a * 0.30, wd = 0.06 + d * 0.30, wh = 0.16, wr = 0.06 + r * 0.30;
+        var wa = a * 0.34, wd = d * 0.34, wh = 0.16, wr = r * 0.34;   // 0 = straight up / straight down
         var tot = wa + wd + wh + wr, sx = (W - 2 * pad) / tot;
         var x0 = pad, x1 = x0 + wa * sx, x2 = x1 + wd * sx, x3 = x2 + wh * sx, x4 = x3 + wr * sx;
         function ease(t) { return 1 - (1 - t) * (1 - t); }
