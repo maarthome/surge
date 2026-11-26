@@ -13,13 +13,15 @@ function (event, funcs) {
     function hz(x) { return 440 * Math.pow(2, (-60 + 130 * x) / 12); }
     function fmtHz(x) { var f = hz(x); return f < 1000 ? f.toFixed(0) + ' Hz' : (f / 1000).toFixed(2) + ' kHz'; }
     function fmtPct(x) { return (x * 100).toFixed(0) + '%'; }
+    function h2u(key, v) { return key === 'envmod' ? Math.max(0, (v - 0.5) * 2) : v; }
+    function u2h(key, v) { return key === 'envmod' ? 0.5 + 0.5 * v : v; }
     function fmtBi(x) { var v = (x * 2 - 1) * 100; return (v > 0 ? '+' : '') + v.toFixed(0) + '%'; }
 
     // id, label, formatter, default shown before the host reports a value
     var KNOBS = {
         cutoff:  ['a_filter1_cutoff',    'Cutoff',  fmtHz,   0.5],
         res:     ['a_filter1_resonance', 'Reso',    fmtPct,  0.0],
-        envmod:  ['a_filter1_envmod',    'Env amt', fmtBi,   0.5],
+        envmod:  ['a_filter1_envmod',    'Env amt', fmtPct,  0.0],
         a_vol:   ['a_volume',            'Level',   fmtPct,  0.8],
         g_vol:   ['volume',              'Master',  fmtPct,  0.8],
         o1:      ['a_level_o1',          'Osc 1',   fmtPct,  0.8],
@@ -133,8 +135,8 @@ function (event, funcs) {
                 el.className = 'sx-knob';
                 el.innerHTML = '<canvas width="104" height="104"></canvas><div class="sx-val"></div><div class="sx-label">' + def[1] + '</div>';
                 row.appendChild(el);
-                var k = { key: key, uri: BASE + def[0], fmt: def[2], v: d.values[BASE + def[0]], el: el,
-                          cv: el.querySelector('canvas'), txt: el.querySelector('.sx-val'), bi: key === 'envmod' };
+                var k = { key: key, uri: BASE + def[0], fmt: def[2], v: (d.values[BASE + def[0]] === undefined ? undefined : h2u(key, d.values[BASE + def[0]])), el: el,
+                          cv: el.querySelector('canvas'), txt: el.querySelector('.sx-val'), bi: false };
                 if (k.v === undefined) k.v = def[3];
                 d.knobs[key] = k;
                 var drag = null;
@@ -300,7 +302,7 @@ function (event, funcs) {
         k.v = v;
         drawKnob(k.cv, v, k.bi);
         k.txt.textContent = k.fmt(v);
-        if (send) sendLimited(d, k.uri, v);
+        if (send) sendLimited(d, k.uri, u2h(k.key, v));
         redrawGraphs(d);
     }
 
@@ -362,7 +364,7 @@ function (event, funcs) {
             return;
         }
         for (var key in d.knobs) {
-            if (d.knobs[key].uri === event.uri) { setKnob(d, d.knobs[key], event.value, false); break; }
+            if (d.knobs[key].uri === event.uri) { setKnob(d, d.knobs[key], h2u(key, event.value), false); break; }
         }
     }
 }
