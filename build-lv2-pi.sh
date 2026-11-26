@@ -16,8 +16,8 @@
 #   --x11                          with --deploy: also install the "GUI" switch helper (VNC + web page)
 #                                  on the pi-Stomp: apt xvfb x11vnc novnc websockify jalv matchbox + a service
 #                                  (also settable as WITH_X11=1)
-#   --no-knobs                     don't build/install "Surge XT Knobs" (24 real LV2 knobs -> MIDI CC for
-#                                  the pi-Stomp display; on by default)
+#   --knobs                        also build/install the old "Surge XT Knobs" plugin (LV2 knobs -> MIDI CC);
+#                                  off by default, Surge XT has its own control ports now (WITH_KNOBS=1)
 #   --patches / --no-patches       install the patches + wavetables or not (default: asks, and installs
 #                                  them when you don't answer within 20 seconds; INSTALL_PATCHES=1|0)
 #   --no-progress                  show the raw compiler output instead of the progress bar
@@ -78,6 +78,7 @@ while [[ $# -gt 0 ]]; do
     --patches)   INSTALL_PATCHES=1 ;;
     --no-patches) INSTALL_PATCHES=0 ;;
     --x11)       WITH_X11=1 ;;
+    --knobs)     WITH_KNOBS=1 ;;
     --no-knobs)  WITH_KNOBS=0 ;;
     --no-progress) PROGRESS=0 ;;
     --panel-scale)
