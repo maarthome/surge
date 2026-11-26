@@ -13,6 +13,7 @@
 #   ./build-lv2-pi.sh --deb-only   only make the .deb from the existing build
 #   --with-fx                      also build/install "Surge XT Effects" (off by default)
 #                                  (also settable as WITH_FX=1)
+#   --no-progress                  show the raw compiler output instead of the progress bar
 #   --panel-scale N                size of the MOD UI panel, 1.0 = 940x500 px (default 1.25)
 #                                  (also settable as PANEL_SCALE=N)
 #   --lv2-dir DIR                  where the .lv2 plugin folders go (default ~/.lv2)
@@ -48,6 +49,7 @@ DO_BUILD=1
 DO_DEB=0
 WITH_FX="${WITH_FX:-0}"
 PANEL_SCALE="${PANEL_SCALE:-1.25}"
+PROGRESS=1
 while [[ $# -gt 0 ]]; do
   arg="$1"; shift
   case "$arg" in
@@ -63,6 +65,7 @@ while [[ $# -gt 0 ]]; do
       [[ $# -gt 0 ]] || { echo "--lv2-dir needs a folder"; exit 1; }
       LV2_DIR_EXPLICIT="$1"; shift ;;
     --with-fx)   WITH_FX=1 ;;
+    --no-progress) PROGRESS=0 ;;
     --panel-scale)
       [[ $# -gt 0 ]] || { echo "--panel-scale needs a number"; exit 1; }
       PANEL_SCALE="$1"; shift ;;
@@ -119,6 +122,73 @@ if [[ $DO_CLEAN -eq 1 ]]; then
   echo "==> Removing $BUILD_DIR"
   rm -rf "$BUILD_DIR"
 fi
+
+build_with_progress() {
+  # Runs the build and shows a progress bar (needs the [ 42%] or [42/100] lines that make and
+  # ninja print). The complete output goes to build.log; on failure the end of it is shown.
+  local log="$BUILD_DIR/build.log" rc=0
+  local cmd=(cmake --build "$BUILD_DIR" --config Release --target "${BUILD_TARGETS[@]}" -j "$JOBS")
+
+  if [[ $PROGRESS -eq 0 ]]; then
+    "${cmd[@]}"
+    return
+  fi
+
+  local start=$SECONDS is_tty=0 cols
+  [[ -t 1 ]] && is_tty=1
+  cols="$(tput cols 2>/dev/null || echo 80)"
+  : > "$log"
+
+  set +e
+  "${cmd[@]}" 2>&1 | {
+    local line p n m e msg bar i filled maxp=0 lastp=-1 width=30 room
+    while IFS= read -r line; do
+      printf '%s\n' "$line" >> "$log"
+      p=-1
+      if [[ $line =~ ^\[\ *([0-9]+)%\] ]]; then
+        p=${BASH_REMATCH[1]}
+      elif [[ $line =~ ^\[([0-9]+)/([0-9]+)\] ]]; then
+        n=${BASH_REMATCH[1]}; m=${BASH_REMATCH[2]}
+        (( m > 0 )) && p=$(( n * 100 / m ))
+      fi
+
+      if (( p >= 0 )); then
+        (( p > maxp )) && maxp=$p
+        e=$(( SECONDS - start ))
+        msg="${line#*] }"
+        if [[ $msg =~ ^Building\ [A-Za-z+]+\ object\ (.*) ]]; then
+          msg="compiling ${BASH_REMATCH[1]##*/}"
+        elif [[ $msg =~ ^Linking\ [A-Za-z+]+\ (shared\ library|shared\ module|static\ library|executable)\ (.*) ]]; then
+          msg="linking ${BASH_REMATCH[2]##*/}"
+        fi
+        if (( is_tty )); then
+          filled=$(( maxp * width / 100 )); bar=""
+          for (( i = 0; i < width; i++ )); do
+            (( i < filled )) && bar+="#" || bar+="."
+          done
+          room=$(( cols - width - 18 )); (( room < 10 )) && room=10
+          printf '\r\033[K[%s] %3d%%  %d:%02d  %s' "$bar" "$maxp" $(( e / 60 )) $(( e % 60 )) "${msg:0:room}"
+        elif (( maxp / 10 > lastp / 10 || lastp < 0 )); then
+          printf 'build %3d%%  elapsed %d:%02d\n' "$maxp" $(( e / 60 )) $(( e % 60 ))
+        fi
+        lastp=$maxp
+      elif [[ $line =~ (error|Error\ [0-9]|\*\*\*|FAILED|undefined\ reference) ]]; then
+        (( is_tty )) && printf '\r\033[K'
+        printf '%s\n' "$line"
+      fi
+    done
+    (( is_tty )) && printf '\n'
+  }
+  rc=${PIPESTATUS[0]}
+  set -e
+
+  if [[ $rc -ne 0 ]]; then
+    echo "Build failed (exit code $rc). Last lines of $log:"
+    tail -n 30 "$log"
+    exit "$rc"
+  fi
+  echo "    full build output: $log"
+}
 
 install_modgui() {
   # Adds the MOD UI panel (resources/modgui/surge-xt) to the built "Surge XT.lv2" bundle
@@ -267,7 +337,7 @@ if [[ $DO_BUILD -eq 1 ]]; then
     -DSURGE_SKIP_STANDALONE=TRUE
 
   echo "==> Building ${BUNDLES[*]} with $JOBS jobs (this takes a while on a Pi)"
-  cmake --build "$BUILD_DIR" --config Release --target "${BUILD_TARGETS[@]}" -j "$JOBS"
+  build_with_progress
 
   PRODUCTS="$BUILD_DIR/surge_xt_products"
   install_modgui "$PRODUCTS/Surge XT.lv2"
