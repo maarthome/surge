@@ -110,11 +110,11 @@ function (event, funcs) {
             '<button class="sx-next">&#9654;</button>' +
             '<div class="sx-namebox"><div class="sx-name">-</div><div class="sx-sub"></div></div></div>' +
             '<div class="sx-body">' +
-            '<div class="sx-col" style="width:300px">' +
+            '<div class="sx-col sx-col-w">' +
               '<div class="sx-card"><h4>Amp envelope</h4><canvas class="sx-graph sx-g-aeg" width="560" height="140"></canvas><div class="sx-row" data-k="aeg_a,aeg_d,aeg_s,aeg_r"></div></div>' +
               '<div class="sx-card"><h4>Filter envelope</h4><canvas class="sx-graph sx-g-feg" width="560" height="140"></canvas><div class="sx-row" data-k="feg_a,feg_d,feg_s,feg_r"></div></div>' +
             '</div>' +
-            '<div class="sx-col" style="width:300px">' +
+            '<div class="sx-col sx-col-w">' +
               '<div class="sx-card"><h4>Filter (schematic)</h4><canvas class="sx-graph sx-g-flt" width="560" height="140"></canvas><div class="sx-row" data-k="cutoff,res,envmod"></div></div>' +
               '<div class="sx-card"><h4>Mixer / Output</h4><div class="sx-row" data-k="o1,o2,o3"></div><div class="sx-row" data-k="a_vol,g_vol"></div></div>' +
             '</div>' +

@@ -19,6 +19,7 @@
 .surgext .sx-body { display: flex; gap: 12px; margin-top: 10px; height: 410px; }
 .surgext .sx-card { background: #1c2128; border: 1px solid #2a3038; border-radius: 6px; padding: 8px 10px; box-sizing: border-box; }
 .surgext .sx-card h4 { margin: 0 0 4px 0; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #ff9f2e; font-weight: 600; }
+.surgext .sx-col-w { width: 300px; }
 .surgext .sx-col { display: flex; flex-direction: column; gap: 10px; }
 .surgext .sx-row { display: flex; gap: 4px; justify-content: space-around; }
 .surgext canvas.sx-graph { width: 100%; height: 62px; background: #11151a; border-radius: 4px; display: block; margin-bottom: 4px; }

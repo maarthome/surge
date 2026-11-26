@@ -13,6 +13,8 @@
 #   ./build-lv2-pi.sh --deb-only   only make the .deb from the existing build
 #   --with-fx                      also build/install "Surge XT Effects" (off by default)
 #                                  (also settable as WITH_FX=1)
+#   --panel-scale N                size of the MOD UI panel, 1.0 = 940x500 px (default 1.25)
+#                                  (also settable as PANEL_SCALE=N)
 #   --lv2-dir DIR                  where the .lv2 plugin folders go (default ~/.lv2)
 #                                  only the plugins; patches/wavetables keep their own folder
 #                                  (also settable as LV2_DIR=DIR)
@@ -45,6 +47,7 @@ DO_DEPLOY=0
 DO_BUILD=1
 DO_DEB=0
 WITH_FX="${WITH_FX:-0}"
+PANEL_SCALE="${PANEL_SCALE:-1.25}"
 while [[ $# -gt 0 ]]; do
   arg="$1"; shift
   case "$arg" in
@@ -60,14 +63,22 @@ while [[ $# -gt 0 ]]; do
       [[ $# -gt 0 ]] || { echo "--lv2-dir needs a folder"; exit 1; }
       LV2_DIR_EXPLICIT="$1"; shift ;;
     --with-fx)   WITH_FX=1 ;;
+    --panel-scale)
+      [[ $# -gt 0 ]] || { echo "--panel-scale needs a number"; exit 1; }
+      PANEL_SCALE="$1"; shift ;;
+    --panel-scale=*) PANEL_SCALE="${arg#--panel-scale=}" ;;
     --lv2-dir=*) LV2_DIR_EXPLICIT="${arg#--lv2-dir=}" ;;
-    -h|--help)   sed -n '2,26p' "$0"; exit 0 ;;
+    -h|--help)   sed -n '2,/^$/p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg"; exit 1 ;;
   esac
 done
 
 if [[ -n "$LV2_DIR_EXPLICIT" ]]; then
   LV2_DIR="${LV2_DIR_EXPLICIT/#\~/$HOME}"
+fi
+
+if ! awk -v s="$PANEL_SCALE" 'BEGIN{exit !(s ~ /^[0-9]+(\.[0-9]+)?$/ && s >= 0.5 && s <= 3)}'; then
+  echo "--panel-scale must be a number between 0.5 and 3 (got: $PANEL_SCALE)"; exit 1
 fi
 
 # Which plugins to build/install: Surge XT always, Surge XT Effects only on request
@@ -116,8 +127,9 @@ install_modgui() {
   local dst="$bundle/modgui"
   echo "==> Adding MOD UI panel to $(basename "$bundle")"
   mkdir -p "$dst"
-  cp "$src/icon-surge-xt.html" "$src/stylesheet-surge-xt.css" \
-     "$src/screenshot-surge-xt.png" "$src/thumbnail-surge-xt.png" "$dst/"
+  cp "$src/icon-surge-xt.html" "$src/screenshot-surge-xt.png" "$src/thumbnail-surge-xt.png" "$dst/"
+  python3 "$src/scale-css.py" "$src/stylesheet-surge-xt.css" "$dst/stylesheet-surge-xt.css" "$PANEL_SCALE"
+  echo "    panel scale: $PANEL_SCALE"
   python3 "$src/gen-patchlist.py" "$REPO_DIR/resources/data" \
      "$src/javascript-surge-xt.js" "$dst/javascript-surge-xt.js"
   cp "$src/modgui.ttl" "$bundle/modgui.ttl"
