@@ -101,13 +101,12 @@ function (event, funcs) {
 
     function build(d) {
         var icon = d.icon, root = icon.find('.sx-root')[0];
-        var cats = [], seen = {};
-        PATCHES.forEach(function (p) { if (!seen[p[0]]) { seen[p[0]] = 1; cats.push(p[0]); } });
         var h = '<div class="sx-top"><span class="sx-title">SURGE XT</span>' +
             '<button class="sx-prev">&#9664;</button>' +
-            '<select class="sx-cat">' + cats.map(function (c) { return '<option>' + c + '</option>'; }).join('') + '</select>' +
+            '<select class="sx-cat"></select>' +
             '<select class="sx-pat"></select>' +
             '<button class="sx-next">&#9654;</button>' +
+            '<button class="sx-saveas" title="Save the current sound as a preset">Save as&hellip;</button>' +
             '<div class="sx-namebox"><div class="sx-name">-</div><div class="sx-sub"></div></div></div>' +
             '<div class="sx-body">' +
             '<div class="sx-col sx-col-w">' +
@@ -120,8 +119,6 @@ function (event, funcs) {
             '</div>' +
             '<div class="sx-col" style="flex:1">' +
               '<div class="sx-card"><h4>Macros</h4><div class="sx-row" data-k="m0,m1,m2,m3"></div><div class="sx-row" data-k="m4,m5,m6,m7"></div></div>' +
-              '<div class="sx-card"><h4>My presets</h4><select class="sx-mine"></select>' +
-                '<div class="sx-btnrow"><button class="sx-saveas">Save as&hellip;</button></div><div class="sx-status"></div></div>' +
             '</div></div>' +
             '<div class="sx-modal" hidden><div class="sx-dialog"><div class="sx-dlg-title">Save preset as</div>' +
               '<input class="sx-name-in" type="text" maxlength="60" spellcheck="false">' +
@@ -152,17 +149,14 @@ function (event, funcs) {
             });
         });
         var $cat = $(root).find('.sx-cat'), $pat = $(root).find('.sx-pat');
-        function fillPatches(cat, keepIdx) {
-            var html = '';
-            PATCHES.forEach(function (p, i) { if (p[0] === cat) html += '<option value="' + i + '">' + p[1] + '</option>'; });
-            $pat.html(html);
-            if (keepIdx !== undefined) $pat.val(String(keepIdx));
-        }
-        d.fillPatches = fillPatches;
-        $cat.on('change', function () { fillPatches($cat.val()); var f = $pat.find('option').first().val(); if (f !== undefined) choose(d, parseInt(f, 10)); });
+        $cat.on('change', function () {
+            var c = $cat.val(), first = -1;
+            d.items.forEach(function (it, i) { if (first < 0 && it.cat === c) first = i; });
+            if (first >= 0) choose(d, first);
+        });
         $pat.on('change', function () { choose(d, parseInt($pat.val(), 10)); });
-        $(root).find('.sx-prev').on('click', function () { choose(d, (d.patchIdx - 1 + PATCHES.length) % PATCHES.length); });
-        $(root).find('.sx-next').on('click', function () { choose(d, (d.patchIdx + 1) % PATCHES.length); });
+        $(root).find('.sx-prev').on('click', function () { choose(d, (d.pos - 1 + d.items.length) % d.items.length); });
+        $(root).find('.sx-next').on('click', function () { choose(d, (d.pos + 1) % d.items.length); });
         wirePresets(d);
         Object.keys(d.knobs).forEach(function (key) { setKnob(d, d.knobs[key], d.knobs[key].v, false); });
         showPatch(d);
@@ -181,20 +175,39 @@ function (event, funcs) {
         return list;
     }
 
-    function status(d, msg) {
-        var el = d.root.querySelector('.sx-status');
-        el.textContent = msg;
-        clearTimeout(d.statusTimer);
-        d.statusTimer = setTimeout(function () { el.textContent = ''; }, 4000);
+    // one list for everything: saved presets first ("My presets"), then the factory patches
+    function keyOf(it) { return it.kind === 'f' ? 'f:' + it.idx : 'u:' + it.uri; }
+
+    function buildItems(d, keepKey) {
+        var items = [];
+        d.mine.forEach(function (m) { items.push({ kind: 'u', uri: m.uri, cat: 'My presets', name: m.name }); });
+        PATCHES.forEach(function (p, i) { items.push({ kind: 'f', idx: i, cat: p[0], name: p[1] }); });
+        d.items = items;
+        if (keepKey !== undefined) {
+            d.pos = 0;
+            items.forEach(function (it, i) { if (keyOf(it) === keepKey) d.pos = i; });
+        }
     }
 
-    function refreshMine(d, selectUri) {
-        var sel = $(d.root).find('.sx-mine'), html = '<option value="">- saved presets (' + d.mine.length + ') -</option>';
-        d.mine.forEach(function (m) {
-            html += '<option value="' + $('<div>').text(m.uri).html().replace(/"/g, '&quot;') + '">' + $('<div>').text(m.name).html() + '</option>';
-        });
-        sel.html(html);
-        sel.val(selectUri || '');
+    function esc(s) { return $('<div>').text(s).html().replace(/"/g, '&quot;'); }
+
+    function renderLists(d) {
+        var cur = d.items[d.pos], cats = [], seen = {}, html = '';
+        d.items.forEach(function (it) { if (!seen[it.cat]) { seen[it.cat] = 1; cats.push(it.cat); } });
+        var $cat = $(d.root).find('.sx-cat'), $pat = $(d.root).find('.sx-pat');
+        $cat.html(cats.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join(''));
+        if (!cur) { $pat.html(''); return; }
+        $cat.val(cur.cat);
+        d.items.forEach(function (it, i) { if (it.cat === cur.cat) html += '<option value="' + i + '">' + esc(it.name) + '</option>'; });
+        $pat.html(html);
+        $pat.val(String(d.pos));
+    }
+
+    function status(d, msg) {
+        // messages replace the small line under the patch name for a few seconds
+        d.root.querySelector('.sx-sub').textContent = msg;
+        clearTimeout(d.statusTimer);
+        d.statusTimer = setTimeout(function () { showPatch(d); }, 4000);
     }
 
     function refreshAll(d) {
@@ -207,9 +220,8 @@ function (event, funcs) {
     }
 
     function currentName(d) {
-        if (d.userName) return d.userName;
-        var p = PATCHES[d.patchIdx];
-        return p ? p[1] : 'Surge XT';
+        var it = d.items[d.pos];
+        return it ? it.name : 'Surge XT';
     }
 
     function openSaveDialog(d) {
@@ -249,8 +261,7 @@ function (event, funcs) {
                 if (!resp || !resp.ok) { status(d, 'Saving failed'); return; }
                 if (existing) { existing.uri = resp.uri; existing.path = resp.bundle; }
                 else { existing = { uri: resp.uri, path: resp.bundle, name: name }; d.mine.push(existing); }
-                d.userName = name;
-                refreshMine(d, existing.uri);
+                buildItems(d, 'u:' + existing.uri);
                 showPatch(d);
                 status(d, 'Saved "' + name + '"');
             },
@@ -258,14 +269,11 @@ function (event, funcs) {
         });
     }
 
-    function loadSaved(d, uri) {
-        var item = null;
-        d.mine.forEach(function (m) { if (m.uri === uri) item = m; });
-        if (!item) return;
+    function loadSaved(d, item) {
+        showPatch(d);
         $.ajax({
-            url: '/effect/preset/load/' + d.instance, data: { uri: uri }, dataType: 'json', cache: false,
+            url: '/effect/preset/load/' + d.instance, data: { uri: item.uri }, dataType: 'json', cache: false,
             success: function () {
-                d.userName = item.name;
                 showPatch(d);
                 status(d, 'Loaded "' + item.name + '"');
                 refreshAll(d);
@@ -276,9 +284,7 @@ function (event, funcs) {
 
     function wirePresets(d) {
         var $r = $(d.root);
-        refreshMine(d, '');
         $r.find('.sx-saveas').on('click', function () { openSaveDialog(d); });
-        $r.find('.sx-mine').on('change', function () { var v = $(this).val(); if (v) loadSaved(d, v); });
         $r.find('.sx-cancel').on('click', function () { d.root.querySelector('.sx-modal').hidden = true; });
         $r.find('.sx-ok').on('click', function () { doSave(d); });
         $r.find('.sx-name-in').on('input', function () { updateHint(d); })
@@ -298,31 +304,29 @@ function (event, funcs) {
         redrawGraphs(d);
     }
 
-    function choose(d, idx) {
-        if (!PATCHES.length) return;
-        d.patchIdx = idx;
-        var v = PATCHES.length > 1 ? idx / (PATCHES.length - 1) : 0;
-        d.values[PATCH_PARAM] = v;
-        funcs.patch_set(PATCH_PARAM, 'f', v);
-        d.userName = null;
-        showPatch(d);
-        refreshAll(d);
+    function choose(d, pos) {
+        var it = d.items[pos];
+        if (!it) return;
+        d.pos = pos;
+        if (it.kind === 'f') {
+            var v = PATCHES.length > 1 ? it.idx / (PATCHES.length - 1) : 0;
+            d.values[PATCH_PARAM] = v;
+            funcs.patch_set(PATCH_PARAM, 'f', v);
+            showPatch(d);
+            refreshAll(d);
+        } else {
+            loadSaved(d, it);
+        }
     }
 
     function showPatch(d) {
         var root = d.root;
         if (!root) return;
-        if (d.userName) {
-            root.querySelector('.sx-name').textContent = d.userName;
-            root.querySelector('.sx-sub').textContent = 'My preset';
-            return;
-        }
-        var p = PATCHES[d.patchIdx];
-        if (!p) { root.querySelector('.sx-name').textContent = 'Surge XT'; return; }
-        root.querySelector('.sx-name').textContent = p[1];
-        root.querySelector('.sx-sub').textContent = p[0] + '  (' + (d.patchIdx + 1) + '/' + PATCHES.length + ')  last selected factory patch';
-        $(root).find('.sx-cat').val(p[0]);
-        d.fillPatches(p[0], d.patchIdx);
+        var it = d.items[d.pos];
+        if (!it) { root.querySelector('.sx-name').textContent = 'Surge XT'; return; }
+        root.querySelector('.sx-name').textContent = it.name;
+        root.querySelector('.sx-sub').textContent = (it.kind === 'u' ? 'My presets' : it.cat) + '  (' + (d.pos + 1) + '/' + d.items.length + ')';
+        renderLists(d);
     }
 
     function redrawGraphs(d) {
@@ -336,17 +340,25 @@ function (event, funcs) {
 
     var d = event.data;
     if (event.type === 'start') {
-        d.icon = event.icon; d.pending = {}; d.timer = null; d.values = {}; d.patchIdx = 0; d.userName = null;
+        d.icon = event.icon; d.pending = {}; d.timer = null; d.values = {}; d.pos = 0;
         d.instance = event.icon.attr('mod-instance') || '';
         d.mine = readSavedPresets(d, event.settings);
         (event.parameters || []).forEach(function (p) { d.values[p.uri] = p.value; });
+        var fidx = 0;
         if (d.values[PATCH_PARAM] !== undefined && PATCHES.length > 1) {
-            d.patchIdx = Math.round(d.values[PATCH_PARAM] * (PATCHES.length - 1));
+            fidx = Math.round(d.values[PATCH_PARAM] * (PATCHES.length - 1));
         }
+        buildItems(d, 'f:' + fidx);
         build(d);
     } else if (event.type === 'change' && event.uri && d.knobs) {
         if (event.uri === PATCH_PARAM) {
-            if (PATCHES.length > 1) { d.patchIdx = Math.round(event.value * (PATCHES.length - 1)); showPatch(d); }
+            // a saved preset is the current sound: its own state wins over the stored patch number
+            var cur = d.items[d.pos];
+            if (PATCHES.length > 1 && !(cur && cur.kind === 'u')) {
+                var k = 'f:' + Math.round(event.value * (PATCHES.length - 1));
+                d.items.forEach(function (it, i) { if (keyOf(it) === k) d.pos = i; });
+                showPatch(d);
+            }
             return;
         }
         for (var key in d.knobs) {
