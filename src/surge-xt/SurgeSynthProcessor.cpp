@@ -1966,39 +1966,40 @@ void SurgeSynthProcessor::syncLoop()
 
     // The juce lv2 wrapper only tells MOD about a parameter when a listener is told about it. Values
     // that change inside Surge (a patch was loaded, a state was taken over from the editor window)
-    // would never reach the MOD panel, so the values the panel shows are checked here and
-    // announced when they change.
+    // would never reach MOD (its parameter view, the panel, the pi-Stomp display), so all parameters
+    // are checked here and announced when they change. A patch load changes hundreds of them at
+    // once; they go out in small batches because MOD's event buffer is limited.
     std::vector<std::pair<juce::AudioProcessorParameter *, float>> panelParams;
     {
-        static const char *names[] = {
-            "a_filter1_cutoff", "a_filter1_resonance", "a_filter1_envmod", "a_volume", "volume",
-            "a_level_o1", "a_level_o2", "a_level_o3",
-            "a_env1_attack", "a_env1_decay", "a_env1_sustain", "a_env1_release",
-            "a_env2_attack", "a_env2_decay", "a_env2_sustain", "a_env2_release"};
         for (auto &kv : paramsByID)
-        {
-            if (!kv.second || !kv.second->p)
-                continue;
-            auto sn = kv.second->p->get_storage_name();
-            for (auto *n : names)
-                if (sn == n)
-                    panelParams.emplace_back(kv.second, kv.second->getValue());
-        }
+            if (kv.second)
+                panelParams.emplace_back(kv.second, kv.second->getValue());
         for (auto *m : macrosById)
             panelParams.emplace_back(m, m->getValue());
         if (modMacroBipolar)
             panelParams.emplace_back(modMacroBipolar, modMacroBipolar->getValue());
     }
+    size_t notifyCursor = 0;
     auto notifyPanel = [&]() {
-        for (auto &pp : panelParams)
+        const size_t n = panelParams.size();
+        int sent = 0;
+        size_t lastSent = n;
+        for (size_t k = 0; k < n; ++k)
         {
+            const size_t idx = (notifyCursor + k) % n;
+            auto &pp = panelParams[idx];
             float v = pp.first->getValue();
             if (std::fabs(v - pp.second) > 1e-5f)
             {
                 pp.second = v;
                 pp.first->sendValueChangedMessageToListeners(v);
+                lastSent = idx;
+                if (++sent >= 50)
+                    break;
             }
         }
+        if (lastSent != n)
+            notifyCursor = (lastSent + 1) % n;
     };
 
     int tick = 0;
@@ -2010,12 +2011,12 @@ void SurgeSynthProcessor::syncLoop()
 
     while (!syncStop)
     {
-        sleepMs(200);
+        sleepMs(100);
         if (syncStop)
             break;
 
         notifyPanel();
-        if ((++tick & 1) != 0)
+        if ((++tick & 3) != 0)
             continue; // everything below runs every 0.4 s
 
         // "Surge XT Knobs" (resources/lv2-knobs) sends these controllers; map them to the panel
