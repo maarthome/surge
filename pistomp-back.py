@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Make a press of the Tweak 2 encoder go BACK from the parameter edit screen
-to the pedal block overview (only active in that screen).
+"""Make a press of the Tweak 2 encoder go BACK from any plugin edit screen
+(parameter window or plugin panel) to the pedal block overview.
 
   python3 pistomp-back.py on|off|status [--restart]
 
 Run it from ~/git/surge on the dev Pi: it executes itself on the pi-Stomp over ssh
-(target: $PISTOMP, default pistomp@pistomp.local). It edits plugins/parameter_window.py
+(target: $PISTOMP, default pistomp@pistomp.local). It edits plugins/base.py
 of the pi-stomp software; re-run it after a pi-stomp update. Options:
   --host USER@HOST   ssh target        --local   work on this machine
   --pistomp DIR      pi-stomp folder   --restart restart the pi-Stomp service
@@ -13,13 +13,9 @@ of the pi-stomp software; re-run it after a pi-stomp update. Options:
 import argparse, os, re, shlex, socket, subprocess, sys
 from pathlib import Path
 
-BEGIN = "    # >>> pistomp-back (tweak 2 press = back)\n"
-END = "    # <<< pistomp-back\n"
-CODE = BEGIN + '''    def on_event(self, event) -> bool:
-        from pistomp.controller import ControlType
-        from pistomp.input.event import SwitchEvent, SwitchEventKind
-
-        if (
+BEGIN = "        # >>> pistomp-back (tweak 2 press = back)\n"
+END = "        # <<< pistomp-back\n"
+CODE = BEGIN + '''        if (
             isinstance(event, SwitchEvent)
             and event.kind is SwitchEventKind.PRESS
             and event.controller.type == ControlType.KNOB
@@ -27,16 +23,17 @@ CODE = BEGIN + '''    def on_event(self, event) -> bool:
         ):
             self._on_dismiss()
             return True
-        return super().on_event(event)
-
 ''' + END
-ANCHOR = "    def declare_bindings(self) -> tuple[BindingDecl, ...]:\n"
+ANCHOR = "        if not isinstance(event, EncoderEvent):\n            return False\n        rows = self.declare_bindings()\n"
+# first version of this script patched ParameterWindow only; remove that one when found
+OLD_BEGIN = "    # >>> pistomp-back (tweak 2 press = back)\n"
+OLD_END = "    # <<< pistomp-back\n"
 
 
 def find_pistomp(given):
     if given:
         return Path(given).expanduser()
-    out = subprocess.run("find / -path '*/plugins/parameter_window.py' -not -path '*/tests/*' 2>/dev/null | head -1",
+    out = subprocess.run("find / -path '*/plugins/base.py' -not -path '*/tests/*' 2>/dev/null | head -1",
                          shell=True, capture_output=True, text=True).stdout.strip()
     if not out:
         sys.exit("pi-stomp source not found; use --pistomp DIR")
@@ -57,7 +54,13 @@ def main():
         sys.exit(subprocess.run(["ssh", host, "python3 - " + " ".join(shlex.quote(x) for x in args)],
                                 input=Path(__file__).read_text(), text=True).returncode)
 
-    f = find_pistomp(a.pistomp) / "plugins" / "parameter_window.py"
+    root = find_pistomp(a.pistomp)
+    old = root / "plugins" / "parameter_window.py"
+    if old.exists() and OLD_BEGIN in old.read_text():
+        old.write_text(re.sub(re.escape(OLD_BEGIN) + r".*?" + re.escape(OLD_END), "",
+                              old.read_text(), flags=re.S))
+        print("removed the earlier parameter_window.py version")
+    f = root / "plugins" / "base.py"
     s = f.read_text()
     has = BEGIN in s
     if a.mode == "status":
@@ -67,11 +70,9 @@ def main():
         print(f"already {a.mode}")
         return
     if a.mode == "on":
-        cls = s.index("class ParameterWindow(")
-        i = s.index(ANCHOR, cls)
-        if "\n    def on_event(" in s[cls:]:
-            sys.exit("ParameterWindow already defines on_event; not patching")
-        s = s[:i] + CODE + s[i:]
+        if s.count(ANCHOR) != 1:
+            sys.exit("PluginPanel.on_event not recognised in plugins/base.py (pi-stomp changed?); not patching")
+        s = s.replace(ANCHOR, CODE + ANCHOR, 1)
     else:
         s = re.sub(re.escape(BEGIN) + r".*?" + re.escape(END), "", s, flags=re.S)
     compile(s, str(f), "exec")
