@@ -101,7 +101,7 @@ def start_all():
     # the sound card or to the JACK server that MOD uses
     env["JACK_DEFAULT_SERVER"] = "surgeedit"
     env["JACK_NO_AUDIO_RESERVATION"] = "1"
-    spawn(["jackd", "-r", "-n", "surgeedit", "-d", "dummy", "-r", "48000", "-p", "512"], env=env)
+    spawn(["jackd", "-r", "-n", "surgeedit", "-d", "dummy", "-r", "48000", "-p", "4096"], env=env)
     time.sleep(1.5)
     spawn(["Xvfb", DISP, "-screen", "0", SIZE, "-nolisten", "tcp"])
     time.sleep(1)
