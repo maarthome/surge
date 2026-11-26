@@ -1599,6 +1599,8 @@ void SurgeSynthProcessor::applyMidi(const juce::MidiMessage &m)
     }
     else if (m.isController())
     {
+        dbgCcLast = (ch << 16) | (m.getControllerNumber() << 8) | m.getControllerValue();
+        ++dbgCcCount;
         surge->channelController(ch, m.getControllerNumber(), m.getControllerValue());
         if (surge->storage.echoMIDIctrlToOSC)
             paramChangeToListeners(nullptr, true, SCT_CC, (float)ch, (float)m.getControllerNumber(),
@@ -2007,7 +2009,7 @@ void SurgeSynthProcessor::syncLoop()
             notifyCursor = (lastSent + 1) % n;
     };
 
-    int tick = 0;
+    int tick = 0, lastCcSeen = 0;
     bool active = false;
     size_t lastHash = 0;
     juce::Time lastPeerTime;
@@ -2068,6 +2070,27 @@ void SurgeSynthProcessor::syncLoop()
                         par->miditakeover_status = sts_locked;
                     }
                 }
+            }
+        }
+
+        // diagnostic: every incoming MIDI controller is noted in /tmp/surge-cc.log (this plugin instance only)
+        {
+            const int n = dbgCcCount.load();
+            if (n != lastCcSeen)
+            {
+                lastCcSeen = n;
+                const int v = dbgCcLast.load();
+                juce::String line = juce::Time::getCurrentTime().toString(false, true, true) + " CC received: channel " +
+                                    juce::String((v >> 16) + 1) + " cc " + juce::String((v >> 8) & 0xff) + " value " +
+                                    juce::String(v & 0xff) + " (total " + juce::String(n) + ")";
+                int mapped = -1;
+                for (auto &kv : paramsByID)
+                    if (kv.second && kv.second->p && kv.second->p->midictrl == ((v >> 8) & 0xff))
+                        mapped = 1;
+                line += mapped > 0 ? " - mapped to a parameter" : " - no parameter mapped to this cc";
+                line += ", macro 1 listens to cc " + juce::String(surge->storage.controllers[0]) +
+                        " on channel " + juce::String(surge->storage.controllers_chan[0] + 1);
+                juce::File("/tmp/surge-cc.log").appendText(line + "\n");
             }
         }
 

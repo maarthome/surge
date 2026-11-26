@@ -607,6 +607,8 @@ class SurgeSynthProcessor : public juce::AudioProcessor,
     // their complete patch state to each other, so edits made in the window are heard in MOD.
     std::thread syncThread;
     std::atomic<bool> syncStop{false};
+    // incoming MIDI controllers, counted for the diagnostic log /tmp/surge-cc.log (see syncLoop)
+    std::atomic<int> dbgCcCount{0}, dbgCcLast{0};
     void syncLoop();
     juce::AudioProcessorParameter *modMacroBipolar{nullptr};
     std::vector<int> modPatchList;
