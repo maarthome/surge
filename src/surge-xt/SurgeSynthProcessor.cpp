@@ -1958,6 +1958,11 @@ void SurgeSynthProcessor::syncLoop()
         for (int i = 0; i < ms / 20 && !syncStop; ++i)
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
     };
+    auto syncLog = [&](const juce::String &msg) {
+        // small log for finding problems: <sync dir>/log (written by both instances)
+        dir.getChildFile("log").appendText(juce::Time::getCurrentTime().toString(false, true, true) +
+                                           (isEditor ? " editor: " : " mod: ") + msg + "\n");
+    };
     auto writeState = [&](const juce::MemoryBlock &mb) {
         auto tmp = dir.getChildFile(mine.getFileName() + ".tmp");
         if (tmp.replaceWithData(mb.getData(), mb.getSize()))
@@ -2033,7 +2038,15 @@ void SurgeSynthProcessor::syncLoop()
                 {"a_env1_release", 26},   {"a_vca_level", 36},       {"a_env2_attack", 27},       {"a_env2_decay", 28},
                 {"a_env2_sustain", 29},   {"a_env2_release", 30},      {"a_level_o1", 31},
                 {"a_level_o2", 32},       {"a_level_o3", 33},          {"a_volume", 34},
-                {"volume", 35}};
+                {"volume", 35},
+                {"a_pitch", 52},          {"a_portamento", 53},        {"a_pbrange_dn", 54},
+                {"a_pbrange_up", 55},     {"a_drift", 56},             {"a_noisecol", 57},
+                {"a_filter2_cutoff", 58}, {"a_filter2_resonance", 59}, {"a_filter2_envmod", 60},
+                {"a_filter1_keytrack", 61}, {"a_filter2_keytrack", 62}, {"a_f_balance", 63},
+                {"a_lowcut", 70},         {"a_ws_drive", 71},          {"a_level_ring12", 72},
+                {"a_level_ring23", 73},   {"a_level_noise", 74},       {"a_level_pfg", 75},
+                {"a_vca_velsense", 76},   {"a_pan", 77},               {"a_pan2", 78},
+                {"a_send_fx_1", 79},      {"a_send_fx_2", 80}};
             for (auto &kv : paramsByID)
             {
                 auto *par = kv.second ? kv.second->p : nullptr;
@@ -2074,8 +2087,12 @@ void SurgeSynthProcessor::syncLoop()
             settleUntil = 0;
             auto h = stateHash();
             lastHash = h.first;
+            syncLog("sync active");
             if (!isEditor)
+            {
                 writeState(h.second); // the editor window starts from what MOD plays now
+                syncLog("wrote the state of the plugin in MOD");
+            }
             continue;
         }
 
@@ -2088,23 +2105,34 @@ void SurgeSynthProcessor::syncLoop()
             {
                 setStateInformation(mb.getData(), (int)mb.getSize());
                 gotFirstPeer = true;
+                lastHash = stateHash().first;
                 settleUntil = juce::Time::currentTimeMillis() + 1500;
+                syncLog("took over state from the other instance (" + juce::String((int)mb.getSize()) + " bytes)");
                 continue;
             }
         }
 
-        // 2. after taking over a state, remember how it looks here without sending it back
+        // 2. after taking over a state, wait until it has really been applied here (loading a patch can
+        //    finish a moment later) and remember how it looks, without sending it back
         if (settleUntil != 0)
         {
             if (now < settleUntil)
                 continue;
-            lastHash = stateHash().first;
+            auto hh = stateHash().first;
+            if (hh != lastHash)
+            {
+                lastHash = hh; // still changing: keep waiting
+                settleUntil = now + 1200;
+                continue;
+            }
             settleUntil = 0;
+            syncLog("state taken over and settled");
             continue;
         }
 
-        // 3. the editor waits (max 6 s) for the first state from MOD before it may send its own
-        if (isEditor && !gotFirstPeer && now - startedAt < 6000)
+        // 3. the editor never sends anything before it has taken over the state of the plugin in MOD
+        //    (otherwise its fresh "init" patch would overwrite the sound in MOD)
+        if (isEditor && !gotFirstPeer)
             continue;
 
         // 4. something changed here -> send the complete state to the other instance
@@ -2113,6 +2141,7 @@ void SurgeSynthProcessor::syncLoop()
         {
             lastHash = h.first;
             writeState(h.second);
+            syncLog("sent changed state");
         }
     }
 }

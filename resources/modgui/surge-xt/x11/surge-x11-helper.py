@@ -107,10 +107,10 @@ def start_all():
     time.sleep(1)
     # a minimal window manager without title bar: it makes the Surge window fill the whole screen
     if shutil.which("matchbox-window-manager"):
-        spawn(["matchbox-window-manager", "-display", DISP, "-use_titlebar", "no", "-use_cursor", "no"])
+        spawn(["matchbox-window-manager", "-display", DISP, "-use_titlebar", "no", "-use_cursor", "yes"])
         time.sleep(0.5)
     spawn([GUI], env=env)
-    cmd = ["x11vnc", "-display", DISP, "-forever", "-shared", "-rfbport", str(VNC_PORT), "-quiet"]
+    cmd = ["x11vnc", "-display", DISP, "-forever", "-shared", "-rfbport", str(VNC_PORT), "-quiet", "-cursor", "arrow"]
     cmd += ["-rfbauth", PASSWD] if PASSWD else ["-nopw"]
     spawn(cmd)
     spawn(["websockify", "--web", novnc_dir(), str(WEB_PORT), "localhost:%d" % VNC_PORT])
