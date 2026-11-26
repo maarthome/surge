@@ -2,6 +2,7 @@
 """Switch the pi-Stomp arc rings ("circular sliders") on or off for an LV2 plugin.
 
   plugin-rings.py "Surge XT.lv2" off      all parameters become horizontal sliders
+  plugin-rings.py "Surge XT.lv2" all      ALL parameters as circular sliders (scrolls)
   plugin-rings.py "Surge XT.lv2" on       back to pi-Stomp's default (first 4 as rings)
   plugin-rings.py "Surge XT.lv2" status
 
@@ -18,7 +19,7 @@ END = "# <<< plugin-rings:{uri}"
 BLOCK = '''{begin}
 register(
     "{uri}",
-    customization=PluginCustomization(pinned_params=()),
+    customization=PluginCustomization(pinned_params={pins}),
 )
 {end}
 '''
@@ -42,6 +43,26 @@ def plugin_uris(bundle):
     if not uris:
         sys.exit(f"no lv2:Plugin found in {bundle}/manifest.ttl")
     return list(dict.fromkeys(uris))
+
+
+def control_ports(bundle):
+    """[(symbol, name)] of the visible control input ports, from the bundle's TTL files."""
+    out = []
+    for ttl in sorted(bundle.glob("*.ttl")):
+        if ttl.name in ("manifest.ttl", "modgui.ttl", "ui.ttl"):
+            continue
+        chunks = re.split(r"lv2:index\s+\d+", ttl.read_text(errors="replace"))
+        for i in range(1, len(chunks)):
+            head, body = chunks[i - 1][-250:], chunks[i][:600]
+            if "lv2:InputPort" not in head or "lv2:ControlPort" not in head:
+                continue
+            if "notOnGUI" in body or "lv2:designation" in body:
+                continue
+            m = re.search(r'lv2:symbol\s+"([^"]+)"', body)
+            n = re.search(r'lv2:name\s+"([^"]+)"', body)
+            if m:
+                out.append((m.group(1), (n.group(1) if n else m.group(1))[:10]))
+    return out
 
 
 def find_pistomp(given):
@@ -76,7 +97,7 @@ def ensure_wide_window(pistomp):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("bundle")
-    ap.add_argument("mode", choices=["on", "off", "status"])
+    ap.add_argument("mode", choices=["on", "off", "all", "status"])
     ap.add_argument("--pistomp")
     ap.add_argument("--restart", action="store_true")
     a = ap.parse_args()
@@ -92,16 +113,28 @@ def main():
         b, e = BEGIN.format(uri=uri), END.format(uri=uri)
         has = b in s
         if a.mode == "status":
-            print(f"{uri}: rings {'OFF (all horizontal)' if has else 'ON (pi-Stomp default)'}")
-        elif a.mode == "off":
-            if has:
-                print(f"{uri}: already off")
+            if not has:
+                state = "ON (pi-Stomp default: first 4 as rings)"
+            elif "pinned_params=()" in s.split(b)[1].split(e)[0]:
+                state = "OFF (all horizontal sliders)"
             else:
-                if re.search(r'["\']' + re.escape(uri) + r'["\']', s):
-                    print(f"warning: {uri} is already registered elsewhere in pinned_params.py", file=sys.stderr)
-                s = s.rstrip("\n") + "\n\n\n" + BLOCK.format(begin=b, end=e, uri=uri)
-                changed = True
-                print(f"{uri}: rings switched OFF")
+                state = "ALL (every parameter a ring)"
+            print(f"{uri}: rings {state}")
+        elif a.mode in ("off", "all"):
+            if a.mode == "off":
+                pins = "()"
+            else:
+                ports = control_ports(bundle)
+                if not ports:
+                    sys.exit("no control ports found in the bundle's TTL files")
+                pins = "(\n" + "".join(f'        PinnedParam(Symbol("{sym}"), "{nm}"),\n' for sym, nm in ports) + "    )"
+            if has:
+                s = re.sub(r"\n*" + re.escape(b) + r".*?" + re.escape(e) + r"\n", "\n", s, flags=re.S)
+            elif re.search(r'["\']' + re.escape(uri) + r'["\']', s):
+                print(f"warning: {uri} is already registered elsewhere in pinned_params.py", file=sys.stderr)
+            s = s.rstrip("\n") + "\n\n\n" + BLOCK.format(begin=b, end=e, uri=uri, pins=pins)
+            changed = True
+            print(f"{uri}: rings set to {'OFF' if a.mode == 'off' else 'ALL (%d)' % len(ports)}")
         else:
             if not has:
                 print(f"{uri}: already on")
