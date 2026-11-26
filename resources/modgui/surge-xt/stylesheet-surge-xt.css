@@ -56,7 +56,7 @@
 .surgext .sx-c-filt .sx-line .sx-c[data-c="f2off"], .surgext .sx-c-filt .sx-line .sx-c[data-c="f2link"] { flex: 0 0 54px; }
 .surgext .sx-c-filt .sx-line .sx-c[data-c="kroot"] { flex: 0 0 96px; }
 .surgext .sx-w select { width: 100%; max-width: none; height: 26px; font-size: 12px; padding: 0 4px; }
-.surgext canvas.sx-graph { width: 100%; height: 60px; background: #11151a; border-radius: 4px; display: block; margin-bottom: 4px; }
+.surgext canvas.sx-graph { width: 100%; height: 74px; background: #11151a; border-radius: 4px; display: block; margin-bottom: 4px; }
 .surgext .sx-w-h { touch-action: none; }
 .surgext .sx-hh { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 3px; }
 .surgext .sx-w-h .sx-track { height: 10px; position: relative; background: #11151a; border: 1px solid #2f3742; border-radius: 5px; cursor: pointer; margin: 0 2px; }
@@ -71,7 +71,7 @@
 .surgext .sx-w-v .sx-label { order: 2; text-align: center; }
 .surgext .sx-w-v .sx-fill { position: absolute; left: 0; right: 0; background: #ff9f2e; border-radius: 6px; opacity: .85; }
 .surgext .sx-w-v .sx-thumb { position: absolute; left: -4px; right: -4px; height: 4px; margin-bottom: -2px; background: #e9edf3; border-radius: 2px; }
-.surgext .sx-faders { display: flex; gap: 4px; height: 110px; }
+.surgext .sx-faders { display: flex; gap: 4px; height: 98px; }
 .surgext .sx-faders .sx-c { flex: 1 1 0; }
 .surgext .sx-faders .sx-sp { flex: 0 0 8px; }
 .surgext .sx-c-eg .sx-c[data-c$="_mode"] { margin-top: 6px; }
@@ -96,3 +96,5 @@
 .surgext .sx-c-filt canvas.sx-g-flt { flex: 0 0 200px; width: 200px; height: 40px; margin: 0; }
 .surgext .sx-c-filt .sx-line .sx-c[data-c="wstype"] { flex: 0 0 150px; }
 .surgext .sx-top { padding-right: 210px; }
+.surgext .sx-f2 .sx-fill { background: #35b6ff; }
+.surgext .sx-f2.sx-w-s select, .surgext .sx-f2 select { border-color: #35b6ff; }

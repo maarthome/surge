@@ -131,27 +131,41 @@ function (event, funcs) {
         c.stroke();
     }
 
-    function drawEnv(cv, g) {
+    var BLUE = '#35b6ff';
+    // Envelope graph. mods = null: plain curve (orange, 0..1). mods = [{amt, color}, ...]: the same envelope
+    // drawn once per filter, scaled by that filter's envelope amount (-1..+1) around a centre line.
+    function drawEnv(cv, g, mods) {
         var c = cv.getContext('2d'), W = cv.width, H = cv.height, pad = 6;
         c.clearRect(0, 0, W, H);
         var a = g('a'), d = g('d'), s = g('s'), r = g('r');
         var wa = 0.06 + a * 0.30, wd = 0.06 + d * 0.30, wh = 0.16, wr = 0.06 + r * 0.30;
-        var tot = wa + wd + wh + wr, sx = (W - 2 * pad) / tot, base = H - pad, top = pad + 2;
+        var tot = wa + wd + wh + wr, sx = (W - 2 * pad) / tot;
         var x0 = pad, x1 = x0 + wa * sx, x2 = x1 + wd * sx, x3 = x2 + wh * sx, x4 = x3 + wr * sx;
-        var ys = base - (base - top) * s;
         function ease(t) { return 1 - (1 - t) * (1 - t); }
-        c.beginPath(); c.moveTo(x0, base);
-        var i, t;
-        for (i = 1; i <= 24; i++) { t = i / 24; c.lineTo(x0 + (x1 - x0) * t, base - (base - top) * ease(t)); }
-        for (i = 1; i <= 24; i++) { t = i / 24; c.lineTo(x1 + (x2 - x1) * t, ys + (top - ys) * (1 - t) * (1 - t)); }
-        c.lineTo(x3, ys);
-        for (i = 1; i <= 24; i++) { t = i / 24; c.lineTo(x3 + (x4 - x3) * t, base - (base - ys) * (1 - t) * (1 - t)); }
-        c.lineTo(x4, base);
-        c.strokeStyle = ORANGE; c.lineWidth = 2; c.stroke();
-        c.lineTo(x0, base); c.fillStyle = 'rgba(255,159,46,0.18)'; c.fill();
+        var pts = [[x0, 0]], i, t;      // [x, envelope value 0..1]
+        for (i = 1; i <= 24; i++) { t = i / 24; pts.push([x0 + (x1 - x0) * t, ease(t)]); }
+        for (i = 1; i <= 24; i++) { t = i / 24; pts.push([x1 + (x2 - x1) * t, s + (1 - s) * (1 - t) * (1 - t)]); }
+        pts.push([x3, s]);
+        for (i = 1; i <= 24; i++) { t = i / 24; pts.push([x3 + (x4 - x3) * t, s * (1 - t) * (1 - t)]); }
+        pts.push([x4, 0]);
+        var base, top, list;
+        if (mods) { base = H / 2; top = pad + 2; list = mods; }
+        else { base = H - pad; top = pad + 2; list = [{ amt: 1, color: ORANGE }]; }
         c.strokeStyle = '#3a4350'; c.lineWidth = 1; c.setLineDash([3, 3]);
-        [x1, x2, x3].forEach(function (x) { c.beginPath(); c.moveTo(x, top); c.lineTo(x, base); c.stroke(); });
+        [x1, x2, x3].forEach(function (x) { c.beginPath(); c.moveTo(x, pad); c.lineTo(x, H - pad); c.stroke(); });
+        if (mods) { c.beginPath(); c.moveTo(pad, base); c.lineTo(W - pad, base); c.stroke(); }
         c.setLineDash([]);
+        list.forEach(function (m) {
+            c.beginPath();
+            pts.forEach(function (p, k) { var y = base - (base - top) * p[1] * m.amt; if (k === 0) c.moveTo(p[0], y); else c.lineTo(p[0], y); });
+            c.strokeStyle = m.color; c.lineWidth = 2; c.stroke();
+            if (!mods) { c.lineTo(x0, base); c.fillStyle = 'rgba(255,159,46,0.18)'; c.fill(); }
+        });
+        if (mods) {
+            c.font = '10px sans-serif'; c.textBaseline = 'top';
+            c.fillStyle = ORANGE; c.fillText('F1', W - 44, 3);
+            c.fillStyle = BLUE; c.fillText('F2', W - 24, 3);
+        }
     }
 
     function drawFilter(cv, cut, res) {
@@ -197,10 +211,10 @@ function (event, funcs) {
                     return '<div class="sx-ch"><span class="sx-c" data-c="' + n + '"></span><div class="sx-ms"><span class="sx-c" data-c="mute_' + n + '"></span><span class="sx-c" data-c="solo_' + n + '"></span></div><span class="sx-c" data-c="route_' + n + '"></span></div>';
                 }).join('') +
                 '<div class="sx-ch"><span class="sx-c" data-c="pfg"></span></div></div></div>' +
-              '<div class="sx-card sx-c-eg"><h4>Filter EG</h4><canvas class="sx-graph sx-g-feg" width="300" height="60"></canvas>' +
+              '<div class="sx-card sx-c-eg"><h4>Filter EG</h4><canvas class="sx-graph sx-g-feg" width="300" height="76"></canvas>' +
                 '<div class="sx-faders"><span class="sx-c" data-c="feg_a"></span><span class="sx-c" data-c="feg_d"></span><span class="sx-c" data-c="feg_s"></span><span class="sx-c" data-c="feg_r"></span><span class="sx-sp"></span><span class="sx-c" data-c="envmod"></span><span class="sx-c" data-c="envmod2"></span></div>' +
                 '<span class="sx-c" data-c="feg_mode"></span></div>' +
-              '<div class="sx-card sx-c-eg"><h4>Amp EG</h4><canvas class="sx-graph sx-g-aeg" width="300" height="60"></canvas>' +
+              '<div class="sx-card sx-c-eg"><h4>Amp EG</h4><canvas class="sx-graph sx-g-aeg" width="300" height="76"></canvas>' +
                 '<div class="sx-faders"><span class="sx-c" data-c="aeg_a"></span><span class="sx-c" data-c="aeg_d"></span><span class="sx-c" data-c="aeg_s"></span><span class="sx-c" data-c="aeg_r"></span><span class="sx-sp"></span><span class="sx-c" data-c="vel"></span><span class="sx-c" data-c="gain"></span></div>' +
                 '<span class="sx-c" data-c="aeg_mode"></span></div>' +
               '<div class="sx-card sx-c-out"><h4>Scene output</h4><div class="sx-faders"><span class="sx-c" data-c="a_vol"></span><span class="sx-c" data-c="pan"></span><span class="sx-c" data-c="width"></span><span class="sx-c" data-c="fx1"></span><span class="sx-c" data-c="fx2"></span><span class="sx-sp"></span><span class="sx-c" data-c="g_vol"></span></div></div>' +
@@ -449,7 +463,7 @@ function (event, funcs) {
                   min: o.min, max: o.max, v: d.values[uri] };
         if (k.v === undefined) k.v = k.def;
         d.knobs[key] = k;
-        el.className = 'sx-w sx-w-' + type;
+        el.className = 'sx-w sx-w-' + type + (/^(envmod2|kt2|res2|cutoff2|f2_type|f2_sub)$/.test(key) ? ' sx-f2' : '');
         host.appendChild(el);
         function commit(nv) { setKnob(d, k, Math.max(0, Math.min(1, nv)), true); }
         var drag = null;
@@ -576,7 +590,7 @@ function (event, funcs) {
         var K = d.knobs, root = d.root;
         function g(pre) { return function (x) { return K[pre + '_' + x].v; }; }
         drawEnv(root.querySelector('.sx-g-aeg'), g('aeg'));
-        drawEnv(root.querySelector('.sx-g-feg'), g('feg'));
+        drawEnv(root.querySelector('.sx-g-feg'), g('feg'), [{ amt: K.envmod.v * 2 - 1, color: ORANGE }, { amt: K.envmod2.v * 2 - 1, color: BLUE }]);
         var fc = root.querySelector('.sx-g-flt'); if (fc) drawFilter(fc, K.cutoff.v, K.res.v);
     }
 
