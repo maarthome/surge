@@ -8,8 +8,12 @@
 
 The argument is the bundle folder name (searched in ~/.lv2 and the system LV2
 folders) or a path to the bundle. The plugin URI(s) are read from its
-manifest.ttl. Options:  --pistomp DIR   pi-stomp source folder (auto-detected)
-                        --restart       restart the pi-Stomp service afterwards
+manifest.ttl. Run it from ~/git/surge on the dev Pi: it executes itself on the pi-Stomp over ssh
+(target: $PISTOMP, default pistomp@pistomp.local). On the pi-Stomp itself it runs locally.
+Options:  --host USER@HOST  ssh target (default $PISTOMP or pistomp@pistomp.local)
+          --local           do not use ssh, work on this machine
+          --pistomp DIR     pi-stomp source folder (auto-detected)
+          --restart         restart the pi-Stomp service afterwards
 """
 import argparse, os, re, subprocess, sys
 from pathlib import Path
@@ -99,8 +103,19 @@ def main():
     ap.add_argument("bundle")
     ap.add_argument("mode", choices=["on", "off", "all", "status"])
     ap.add_argument("--pistomp")
+    ap.add_argument("--host")
+    ap.add_argument("--local", action="store_true")
     ap.add_argument("--restart", action="store_true")
     a = ap.parse_args()
+
+    import socket
+    if not a.local and socket.gethostname().lower() != "pistomp":
+        host = a.host or os.environ.get("PISTOMP", "pistomp@pistomp.local")
+        args = [a.bundle, a.mode, "--local"] + (["--pistomp", a.pistomp] if a.pistomp else []) \
+            + (["--restart"] if a.restart else [])
+        print(f"==> running on {host}")
+        sys.exit(subprocess.run(["ssh", host, "python3", "-", *args],
+                                input=Path(__file__).read_text(), text=True).returncode)
 
     bundle = find_bundle(a.bundle)
     uris = plugin_uris(bundle)
