@@ -18,6 +18,8 @@
 #                                  (also settable as WITH_X11=1)
 #   --no-knobs                     don't build/install "Surge XT Knobs" (24 real LV2 knobs -> MIDI CC for
 #                                  the pi-Stomp display; on by default)
+#   --patches / --no-patches       install the patches + wavetables or not (default: asks, and installs
+#                                  them when you don't answer within 20 seconds; INSTALL_PATCHES=1|0)
 #   --no-progress                  show the raw compiler output instead of the progress bar
 #   --panel-scale N                size of the MOD UI panel, 1.0 = 1100x640 px (default 1.0)
 #                                  (also settable as PANEL_SCALE=N)
@@ -57,6 +59,7 @@ WITH_X11="${WITH_X11:-0}"
 WITH_KNOBS="${WITH_KNOBS:-1}"
 PANEL_SCALE="${PANEL_SCALE:-1.0}"
 PROGRESS=1
+INSTALL_PATCHES="${INSTALL_PATCHES:-ask}"
 while [[ $# -gt 0 ]]; do
   arg="$1"; shift
   case "$arg" in
@@ -72,6 +75,8 @@ while [[ $# -gt 0 ]]; do
       [[ $# -gt 0 ]] || { echo "--lv2-dir needs a folder"; exit 1; }
       LV2_DIR_EXPLICIT="$1"; shift ;;
     --with-fx)   WITH_FX=1 ;;
+    --patches)   INSTALL_PATCHES=1 ;;
+    --no-patches) INSTALL_PATCHES=0 ;;
     --x11)       WITH_X11=1 ;;
     --no-knobs)  WITH_KNOBS=0 ;;
     --no-progress) PROGRESS=0 ;;
@@ -99,6 +104,18 @@ BUILD_TARGETS=(surge-xt_LV2)
 if [[ "$WITH_KNOBS" == "1" ]]; then
   BUNDLES+=("Surge XT Knobs.lv2")
 fi
+# Patches + wavetables: ask once, up front. No answer within 20 s (or no terminal) = install them.
+if [[ "$INSTALL_PATCHES" == "ask" ]]; then
+  INSTALL_PATCHES=1
+  if [[ -t 0 ]]; then
+    reply=""
+    read -r -t 20 -p "Install the patches and wavetables too? [Y/n] (installs in 20 s if you don't answer) " reply || true
+    echo
+    case "$reply" in [nN]*) INSTALL_PATCHES=0 ;; esac
+  fi
+fi
+[[ "$INSTALL_PATCHES" == "1" ]] && echo "==> Patches and wavetables: will be installed" || echo "==> Patches and wavetables: skipped"
+
 if [[ "$WITH_FX" == "1" ]]; then
   BUNDLES+=("Surge XT Effects.lv2")
   BUILD_TARGETS+=(surge-fx_LV2)
@@ -311,8 +328,10 @@ deploy_pistomp() {
       echo "    WARNING: $products/$bundle not found (build first)"
     fi
   done
-  echo "==> Copying factory data (patches, wavetables)"
-  rsync -as "$REPO_DIR/resources/data/" "$PISTOMP:.local/share/surge-xt/"
+  if [[ "$INSTALL_PATCHES" == "1" ]]; then
+    echo "==> Copying factory data (patches, wavetables)"
+    rsync -as "$REPO_DIR/resources/data/" "$PISTOMP:.local/share/surge-xt/"
+  fi
   if [[ $WITH_X11 -eq 1 ]]; then
     echo "==> Installing the GUI helper (VNC + web page) on the pi-Stomp"
     ssh "$PISTOMP" "mkdir -p ~/.local/share/surge-xt-x11 ~/.config/systemd/user"
@@ -395,9 +414,11 @@ if [[ $DO_BUILD -eq 1 ]]; then
     fi
   done
 
-  echo "==> Installing factory data (patches, wavetables) to $DATA_DIR"
-  mkdir -p "$DATA_DIR"
-  cp -r "$REPO_DIR/resources/data/." "$DATA_DIR/"
+  if [[ "$INSTALL_PATCHES" == "1" ]]; then
+    echo "==> Installing factory data (patches, wavetables) to $DATA_DIR"
+    mkdir -p "$DATA_DIR"
+    cp -r "$REPO_DIR/resources/data/." "$DATA_DIR/"
+  fi
 fi
 
 if [[ $DO_DEB -eq 1 ]]; then
