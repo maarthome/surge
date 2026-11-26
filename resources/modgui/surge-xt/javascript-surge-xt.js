@@ -120,7 +120,7 @@ function (event, funcs) {
             '<div class="sx-col" style="flex:1">' +
               '<div class="sx-card"><h4>Macros</h4><div class="sx-row" data-k="m0,m1,m2,m3"></div><div class="sx-row" data-k="m4,m5,m6,m7"></div></div>' +
             '</div></div>' +
-            '<button class="sx-x11" title="Open the Surge XT window as a web page (VNC) on this PC">GUI &#8599;</button>' +
+            '<button class="sx-x11" title="Open the Surge XT editor window as a web page (VNC) on this PC; edits there are copied to this plugin">GUI &#8599;</button>' +
             '<div class="sx-modal" hidden><div class="sx-dialog"><div class="sx-dlg-title">Save preset as</div>' +
               '<input class="sx-name-in" type="text" maxlength="60" spellcheck="false">' +
               '<div class="sx-hint"></div>' +
@@ -334,7 +334,11 @@ function (event, funcs) {
                 x.send();
             } catch (e) { cb(null); }
         }
-        function show(running) { d.x11 = running; $b.toggleClass('on', !!running).html(running ? 'GUI on &#9632;' : 'GUI &#8599;'); }
+        function show(running) {
+            d.x11 = running;
+            clearInterval(d.x11Timer);
+            // while the window is open, edits made there change this plugin: keep the knobs current
+            if (running) d.x11Timer = setInterval(function () { Object.keys(d.knobs).forEach(function (k) { funcs.patch_get(d.knobs[k].uri); }); }, 1500); $b.toggleClass('on', !!running).html(running ? 'GUI on &#9632;' : 'GUI &#8599;'); }
         call('/status', function (r) { if (r) show(r.running); });
         $b.on('click', function () {
             if (d.x11) { call('/stop', function (r) { show(r ? r.running : false); status(d, 'GUI stopped'); }); return; }

@@ -198,6 +198,9 @@ SurgeSynthProcessor::SurgeSynthProcessor()
 
     midiKeyboardState.addListener(this);
     oscHandler.initOSC(this, surge);
+
+    if (wrapperType == wrapperType_LV2)
+        syncThread = std::thread([this]() { syncLoop(); });
 }
 
 void SurgeSynthProcessor::buildModPatchList()
@@ -256,6 +259,10 @@ void SurgeSynthProcessor::selectModPatch(int idx)
 
 SurgeSynthProcessor::~SurgeSynthProcessor()
 {
+    syncStop = true;
+    if (syncThread.joinable())
+        syncThread.join();
+
     if (!surge)
     {
         return;
@@ -1920,3 +1927,101 @@ void *JUCE_CALLTYPE clapJuceExtensionCustomFactory(const char *)
     return nullptr;
 }
 #endif
+
+void SurgeSynthProcessor::syncLoop()
+{
+    // See the comment at syncThread in the header. A plain thread is used because a plugin that
+    // runs headless inside mod-host has no juce message loop for timers.
+    const char *roleEnv = std::getenv("SURGE_SYNC_ROLE");
+    const bool isEditor = roleEnv && std::string(roleEnv) == "editor";
+    const char *dirEnv = std::getenv("SURGE_SYNC_DIR");
+    const juce::File dir(dirEnv ? dirEnv : "/tmp/surge-sync");
+    const juce::File enabledFile = dir.getChildFile("enabled");
+    const juce::File mine = dir.getChildFile(isEditor ? "from-editor.bin" : "from-mod.bin");
+    const juce::File peer = dir.getChildFile(isEditor ? "from-mod.bin" : "from-editor.bin");
+
+    auto stateHash = [this]() {
+        juce::MemoryBlock mb;
+        getStateInformation(mb);
+        return std::make_pair(std::hash<std::string>()(std::string((const char *)mb.getData(), mb.getSize())), mb);
+    };
+    auto sleepMs = [this](int ms) {
+        for (int i = 0; i < ms / 20 && !syncStop; ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    };
+    auto writeState = [&](const juce::MemoryBlock &mb) {
+        auto tmp = dir.getChildFile(mine.getFileName() + ".tmp");
+        if (tmp.replaceWithData(mb.getData(), mb.getSize()))
+            tmp.moveFileTo(mine);
+    };
+
+    bool active = false;
+    size_t lastHash = 0;
+    juce::Time lastPeerTime;
+    juce::int64 settleUntil = 0, startedAt = 0;
+    bool gotFirstPeer = false;
+
+    while (!syncStop)
+    {
+        sleepMs(400);
+        if (syncStop)
+            break;
+
+        if (!enabledFile.existsAsFile())
+        {
+            active = false;
+            continue;
+        }
+
+        const auto now = juce::Time::currentTimeMillis();
+        if (!active)
+        {
+            active = true;
+            startedAt = now;
+            gotFirstPeer = false;
+            lastPeerTime = juce::Time();
+            settleUntil = 0;
+            auto h = stateHash();
+            lastHash = h.first;
+            if (!isEditor)
+                writeState(h.second); // the editor window starts from what MOD plays now
+            continue;
+        }
+
+        // 1. the other instance changed something -> take over its complete state
+        if (peer.existsAsFile() && peer.getLastModificationTime() != lastPeerTime)
+        {
+            lastPeerTime = peer.getLastModificationTime();
+            juce::MemoryBlock mb;
+            if (peer.loadFileAsData(mb) && mb.getSize() > 0)
+            {
+                setStateInformation(mb.getData(), (int)mb.getSize());
+                gotFirstPeer = true;
+                settleUntil = juce::Time::currentTimeMillis() + 1500;
+                continue;
+            }
+        }
+
+        // 2. after taking over a state, remember how it looks here without sending it back
+        if (settleUntil != 0)
+        {
+            if (now < settleUntil)
+                continue;
+            lastHash = stateHash().first;
+            settleUntil = 0;
+            continue;
+        }
+
+        // 3. the editor waits (max 6 s) for the first state from MOD before it may send its own
+        if (isEditor && !gotFirstPeer && now - startedAt < 6000)
+            continue;
+
+        // 4. something changed here -> send the complete state to the other instance
+        auto h = stateHash();
+        if (h.first != lastHash)
+        {
+            lastHash = h.first;
+            writeState(h.second);
+        }
+    }
+}

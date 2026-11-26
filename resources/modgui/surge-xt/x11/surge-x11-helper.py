@@ -2,7 +2,9 @@
 """Helper for the Surge XT MOD panel "GUI" switch (runs on the pi-Stomp).
 
 Starts the Surge XT plugin GUI (jalv, X11) on a virtual screen and serves that screen as VNC and as
-a web page (noVNC), so it can be opened in the browser on the PC.
+a web page (noVNC), so it can be opened in the browser on the PC. The window is only an editor: it
+is silent, and everything changed there is copied to the Surge XT in the MOD pedalboard (and the
+other way round).
 
   GET /status  -> {"running": bool, "url": "http://<host>:6080/vnc.html?..."}
   GET /start   -> starts virtual screen + GUI + VNC + noVNC web server
@@ -12,6 +14,8 @@ Only requests from private LAN addresses are accepted. VNC (port 5900) has no pa
 SURGE_VNC_PASSWD_FILE to an x11vnc password file to protect it.
 """
 import ipaddress, json, os, shutil, signal, subprocess, time
+
+SYNC_DIR = os.environ.get("SURGE_SYNC_DIR", "/tmp/surge-sync")
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(os.environ.get("SURGE_X11_PORT", "8765"))
@@ -33,8 +37,25 @@ def running():
     return len(procs) > 0 and all(alive(p) for p in procs)
 
 
+def sync_off():
+    try:
+        os.remove(os.path.join(SYNC_DIR, "enabled"))
+    except OSError:
+        pass
+
+
+def sync_on():
+    # fresh folder; while "enabled" exists the plugin in MOD and the plugin in the window copy
+    # their complete patch state to each other (see SurgeSynthProcessor::syncLoop)
+    shutil.rmtree(SYNC_DIR, ignore_errors=True)
+    os.makedirs(SYNC_DIR, exist_ok=True)
+    os.chmod(SYNC_DIR, 0o1777)
+    open(os.path.join(SYNC_DIR, "enabled"), "w").close()
+
+
 def stop_all():
     global procs
+    sync_off()
     for p in reversed(procs):
         try:
             os.killpg(os.getpgid(p.pid), signal.SIGTERM)
@@ -62,7 +83,8 @@ def start_all():
     if missing or not novnc_dir():
         return "missing: " + " ".join(missing + ([] if novnc_dir() else ["novnc"])) + \
                " (sudo apt install xvfb x11vnc novnc websockify jalv)"
-    env = dict(os.environ, DISPLAY=DISP)
+    env = dict(os.environ, DISPLAY=DISP, SURGE_SYNC_ROLE="editor", SURGE_SYNC_DIR=SYNC_DIR)
+    sync_on()
     spawn(["Xvfb", DISP, "-screen", "0", SIZE, "-nolisten", "tcp"])
     time.sleep(1)
     spawn([GUI], env=env)

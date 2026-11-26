@@ -26,6 +26,11 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <atomic>
+#include <thread>
+#include <chrono>
+#include <cstdlib>
+#include <string>
 #include "SurgeSynthesizer.h"
 #include "SurgeStorage.h"
 #include "util/LockFreeStack.h"
@@ -563,6 +568,12 @@ class SurgeSynthProcessor : public juce::AudioProcessor,
     int juceSidePresetId{0};
 
     // LV2 only: factory patches in a fixed order, selectable through one parameter (MOD UI panel)
+    // MOD editor sync (LV2 only): while /tmp/surge-sync/enabled exists, the instance in the MOD
+    // pedalboard ("mod") and the one in the X11/VNC window ("editor", SURGE_SYNC_ROLE=editor) copy
+    // their complete patch state to each other, so edits made in the window are heard in MOD.
+    std::thread syncThread;
+    std::atomic<bool> syncStop{false};
+    void syncLoop();
     std::vector<int> modPatchList;
     void buildModPatchList();
     void selectModPatch(int idx);
