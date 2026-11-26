@@ -1,8 +1,10 @@
 .surgext { width: 940px; height: 500px; background: #15181d; color: #d8dde6;
   font-family: "Helvetica Neue", Arial, sans-serif; border-radius: 6px; position: relative; user-select: none; }
 .surgext .sx-root { position: absolute; inset: 0; padding: 10px 14px; box-sizing: border-box; z-index: 25; }
-/* drag handle only over the title (a full-size handle would swallow knob clicks) */
-.surgext .mod-drag-handle { left: 0; top: 0; right: auto; bottom: auto; width: 128px; height: 56px; z-index: 40; }
+/* MOD's drag handle (full size, z-index 20) sits under the panel. Empty parts of the panel let
+   clicks fall through to it: drag = move the plugin, click = zoom in on it. Controls stay clickable. */
+.surgext .sx-root { pointer-events: none; }
+.surgext .sx-card, .surgext .sx-top button, .surgext .sx-top select { pointer-events: auto; }
 .surgext .sx-light { position: absolute; right: 74px; bottom: 16px; width: 14px; height: 14px; background-size: contain; background-repeat: no-repeat; z-index: 40; }
 .surgext .sx-bypass { position: absolute; right: 14px; bottom: 14px; width: 50px; height: 18px; line-height: 18px; text-align: center; font-size: 9px; letter-spacing: .08em; color: #9aa4b2; border: 1px solid #353d48; border-radius: 3px; cursor: pointer; z-index: 40; }
 .surgext .sx-top { display: flex; align-items: center; gap: 8px; height: 56px; border-bottom: 1px solid #2a3038; }
