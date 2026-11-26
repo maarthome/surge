@@ -16,6 +16,8 @@
 #   --x11                          with --deploy: also install the "GUI" switch helper (VNC + web page)
 #                                  on the pi-Stomp: apt xvfb x11vnc novnc websockify jalv matchbox + a service
 #                                  (also settable as WITH_X11=1)
+#   --no-knobs                     don't build/install "Surge XT Knobs" (24 real LV2 knobs -> MIDI CC for
+#                                  the pi-Stomp display; on by default)
 #   --no-progress                  show the raw compiler output instead of the progress bar
 #   --panel-scale N                size of the MOD UI panel, 1.0 = 940x500 px (default 1.25)
 #                                  (also settable as PANEL_SCALE=N)
@@ -52,6 +54,7 @@ DO_BUILD=1
 DO_DEB=0
 WITH_FX="${WITH_FX:-0}"
 WITH_X11="${WITH_X11:-0}"
+WITH_KNOBS="${WITH_KNOBS:-1}"
 PANEL_SCALE="${PANEL_SCALE:-1.25}"
 PROGRESS=1
 while [[ $# -gt 0 ]]; do
@@ -70,6 +73,7 @@ while [[ $# -gt 0 ]]; do
       LV2_DIR_EXPLICIT="$1"; shift ;;
     --with-fx)   WITH_FX=1 ;;
     --x11)       WITH_X11=1 ;;
+    --no-knobs)  WITH_KNOBS=0 ;;
     --no-progress) PROGRESS=0 ;;
     --panel-scale)
       [[ $# -gt 0 ]] || { echo "--panel-scale needs a number"; exit 1; }
@@ -92,6 +96,9 @@ fi
 # Which plugins to build/install: Surge XT always, Surge XT Effects only on request
 BUNDLES=("Surge XT.lv2")
 BUILD_TARGETS=(surge-xt_LV2)
+if [[ "$WITH_KNOBS" == "1" ]]; then
+  BUNDLES+=("Surge XT Knobs.lv2")
+fi
 if [[ "$WITH_FX" == "1" ]]; then
   BUNDLES+=("Surge XT Effects.lv2")
   BUILD_TARGETS+=(surge-fx_LV2)
@@ -211,6 +218,20 @@ install_modgui() {
   if ! grep -q "modgui.ttl" "$bundle/manifest.ttl"; then
     printf '\n<https://surge-synthesizer.github.io/lv2/surge-xt>\n    rdfs:seeAlso <modgui.ttl> .\n' >> "$bundle/manifest.ttl"
   fi
+}
+
+build_knobs() {
+  # "Surge XT Knobs": a small plain-C LV2 plugin with 24 control ports that sends MIDI CCs, so the
+  # pi-Stomp display and knobs can edit Surge XT (the JUCE plugin itself has no control ports)
+  local bundle="$1"
+  local src="$REPO_DIR/resources/lv2-knobs"
+  local sdk="$REPO_DIR/libs/JUCE/modules/juce_audio_processors_headless/format_types/LV2_SDK/lv2"
+  [[ -d "$sdk" ]] || sdk="$REPO_DIR/libs/JUCE/modules/juce_audio_processors/format_types/LV2_SDK/lv2"
+  echo "==> Building Surge XT Knobs"
+  rm -rf "$bundle"
+  python3 "$src/gen-knobs.py" "$bundle" >/dev/null
+  gcc -O2 -Wall -shared -fPIC -I"$sdk" -I"$bundle" "$src/surge_xt_knobs.c" -o "$bundle/surge_xt_knobs.so" -lm
+  rm -f "$bundle/knobs.h"
 }
 
 make_deb() {
@@ -353,6 +374,7 @@ if [[ $DO_BUILD -eq 1 ]]; then
   build_with_progress
 
   PRODUCTS="$BUILD_DIR/surge_xt_products"
+  [[ "$WITH_KNOBS" != "1" ]] || build_knobs "$PRODUCTS/Surge XT Knobs.lv2"
   install_modgui "$PRODUCTS/Surge XT.lv2"
   echo "==> Installing LV2 bundles to $LV2_DIR"
   SUDO=""

@@ -2016,7 +2016,46 @@ void SurgeSynthProcessor::syncLoop()
 
         notifyPanel();
         if ((++tick & 1) != 0)
-            continue; // the state sync below runs every 0.4 s
+            continue; // everything below runs every 0.4 s
+
+        // "Surge XT Knobs" (resources/lv2-knobs) sends these controllers; map them to the panel
+        // parameters unless the user already mapped the parameter or the controller is taken.
+        // CCs 20-35 plus the macros on their default CCs 41-48. Keep in sync with gen-knobs.py.
+        {
+            static const struct
+            {
+                const char *name;
+                int cc;
+            } defaultKnobMap[] = {
+                {"a_filter1_cutoff", 20}, {"a_filter1_resonance", 21}, {"a_filter1_envmod", 22},
+                {"a_env1_attack", 23},    {"a_env1_decay", 24},        {"a_env1_sustain", 25},
+                {"a_env1_release", 26},   {"a_env2_attack", 27},       {"a_env2_decay", 28},
+                {"a_env2_sustain", 29},   {"a_env2_release", 30},      {"a_level_o1", 31},
+                {"a_level_o2", 32},       {"a_level_o3", 33},          {"a_volume", 34},
+                {"volume", 35}};
+            for (auto &kv : paramsByID)
+            {
+                auto *par = kv.second ? kv.second->p : nullptr;
+                if (!par || par->midictrl >= 0)
+                    continue;
+                auto sn = par->get_storage_name();
+                for (auto &m : defaultKnobMap)
+                {
+                    if (sn != m.name)
+                        continue;
+                    bool taken = false;
+                    for (auto &o : paramsByID)
+                        if (o.second && o.second->p && o.second->p->midictrl == m.cc)
+                            taken = true;
+                    if (!taken)
+                    {
+                        par->midichan = -1;
+                        par->midictrl = m.cc;
+                        par->miditakeover_status = sts_locked;
+                    }
+                }
+            }
+        }
 
         if (!enabledFile.existsAsFile())
         {
