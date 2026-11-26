@@ -28,7 +28,7 @@ connect_ports() {
   done
 }
 
-# the window is only for editing (silent); the sound comes from the plugin in MOD.
+# the window is only for editing (silent; the helper gives it a private dummy JACK server); the sound comes from the plugin in MOD.
 # SURGE_X11_AUDIO=1 also connects it to the system audio/MIDI ports.
 [[ "${SURGE_X11_AUDIO:-0}" == 1 ]] && connect_ports &
 exec "$JALV" -n "$NAME" "$URI"

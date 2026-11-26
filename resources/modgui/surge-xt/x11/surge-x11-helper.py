@@ -94,6 +94,15 @@ def start_all():
         pass
     env = dict(os.environ, DISPLAY=DISP, SURGE_SYNC_ROLE="editor", SURGE_SYNC_DIR=SYNC_DIR)
     sync_on()
+    if not shutil.which("jackd"):
+        stop_all()
+        return "missing: jackd (sudo apt install jackd2)"
+    # the window is silent, so it gets its own private dummy JACK server; it needs no access to
+    # the sound card or to the JACK server that MOD uses
+    env["JACK_DEFAULT_SERVER"] = "surgeedit"
+    env["JACK_NO_AUDIO_RESERVATION"] = "1"
+    spawn(["jackd", "-r", "-n", "surgeedit", "-d", "dummy", "-r", "48000", "-p", "512"], env=env)
+    time.sleep(1.5)
     spawn(["Xvfb", DISP, "-screen", "0", SIZE, "-nolisten", "tcp"])
     time.sleep(1)
     spawn([GUI], env=env)
