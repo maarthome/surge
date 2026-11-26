@@ -6,11 +6,39 @@ usage: gen-patchlist.py <resources/data dir> <javascript template> <output js>
 The ordering MUST match SurgeSynthProcessor::buildModPatchList(): factory patches, then 3rd party patches, each sorted by
 their path below their folder, bytewise after ASCII-lowercasing.
 """
-import json, os, sys
+import html, json, os, re, sys
 
 
 def ascii_lower(s):
     return "".join(chr(ord(c) + 32) if "A" <= c <= "Z" else c for c in s)
+
+
+ENTRY = re.compile(r'<entry i="(\d+)"[^>]*? label="([^"]*)"')
+
+
+def macro_labels(path):
+    """The 8 macro names stored in the patch, or None when none of them was renamed."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read().decode("latin-1")
+    except OSError:
+        return None
+    a = data.find("<customcontroller>")
+    b = data.find("</customcontroller>", a)
+    if a < 0 or b < 0:
+        return None
+    labels = ["-"] * 8
+    for m in ENTRY.finditer(data[a:b]):
+        i = int(m.group(1))
+        if i < 8:
+            labels[i] = html.unescape(m.group(2))
+    if all(l in ("-", "") for l in labels):
+        return None
+    try:  # the file is utf-8, we read it as latin-1
+        labels = [l.encode("latin-1").decode("utf-8") for l in labels]
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+    return labels
 
 
 def main():
@@ -26,7 +54,11 @@ def main():
         rels.sort(key=lambda r: ascii_lower(r).encode("utf-8"))
         for r in rels:
             cat, _, name = r.rpartition("/")
-            patches.append([prefix + (cat or "Root"), name[:-4]])
+            entry = [prefix + (cat or "Root"), name[:-4]]
+            labels = macro_labels(os.path.join(root, r))
+            if labels:
+                entry.append(labels)
+            patches.append(entry)
     with open(template, encoding="utf-8") as f:
         js = f.read()
     js = js.replace("/*__PATCHES__*/[]", json.dumps(patches, ensure_ascii=False, separators=(",", ":")))

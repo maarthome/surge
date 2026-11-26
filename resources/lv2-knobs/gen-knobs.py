@@ -9,10 +9,10 @@ SurgeSynthProcessor::syncLoop() (defaultKnobMap) - keep the two in sync.
 import os, sys
 
 URI = "https://github.com/maarthome/surge/lv2/surge-xt-knobs"
-# symbol, name, midi cc, default (0..1)
+# symbol, name, midi cc, default (0..1); Amp Gain is -48..+48 dB, 0.5 = 0 dB
 KNOBS = [
     ("cutoff", "Cutoff", 20, 0.5), ("reso", "Resonance", 21, 0.0), ("envamt", "Filter Env Amt", 22, 0.5),
-    ("a_att", "Amp Attack", 23, 0.0), ("a_dec", "Amp Decay", 24, 0.5), ("a_sus", "Amp Sustain", 25, 1.0), ("a_rel", "Amp Release", 26, 0.3),
+    ("a_att", "Amp Attack", 23, 0.0), ("a_dec", "Amp Decay", 24, 0.5), ("a_sus", "Amp Sustain", 25, 1.0), ("a_rel", "Amp Release", 26, 0.3), ("a_gain", "Amp Gain", 36, 0.5),
     ("f_att", "Filter Attack", 27, 0.0), ("f_dec", "Filter Decay", 28, 0.5), ("f_sus", "Filter Sustain", 29, 0.0), ("f_rel", "Filter Release", 30, 0.3),
     ("osc1", "Osc 1 Level", 31, 0.8), ("osc2", "Osc 2 Level", 32, 0.0), ("osc3", "Osc 3 Level", 33, 0.0),
     ("level", "Scene Level", 34, 0.8), ("master", "Master Volume", 35, 0.8),

@@ -2021,7 +2021,7 @@ void SurgeSynthProcessor::syncLoop()
 
         // "Surge XT Knobs" (resources/lv2-knobs) sends these controllers; map them to the panel
         // parameters unless the user already mapped the parameter or the controller is taken.
-        // CCs 20-35 plus the macros on their default CCs 41-48. Keep in sync with gen-knobs.py.
+        // CCs 20-36 plus the macros on their default CCs 41-48. Keep in sync with gen-knobs.py.
         {
             static const struct
             {
@@ -2030,7 +2030,7 @@ void SurgeSynthProcessor::syncLoop()
             } defaultKnobMap[] = {
                 {"a_filter1_cutoff", 20}, {"a_filter1_resonance", 21}, {"a_filter1_envmod", 22},
                 {"a_env1_attack", 23},    {"a_env1_decay", 24},        {"a_env1_sustain", 25},
-                {"a_env1_release", 26},   {"a_env2_attack", 27},       {"a_env2_decay", 28},
+                {"a_env1_release", 26},   {"a_vca_level", 36},       {"a_env2_attack", 27},       {"a_env2_decay", 28},
                 {"a_env2_sustain", 29},   {"a_env2_release", 30},      {"a_level_o1", 31},
                 {"a_level_o2", 32},       {"a_level_o3", 33},          {"a_volume", 34},
                 {"volume", 35}};

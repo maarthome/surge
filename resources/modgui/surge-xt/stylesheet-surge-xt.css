@@ -28,7 +28,7 @@
 .surgext canvas.sx-graph { width: 100%; height: 62px; background: #11151a; border-radius: 4px; display: block; margin-bottom: 4px; }
 .surgext .sx-knob { width: 58px; text-align: center; touch-action: none; cursor: ns-resize; }
 .surgext .sx-knob canvas { width: 52px; height: 52px; display: block; margin: 0 auto; }
-.surgext .sx-knob .sx-label { font-size: 10px; color: #9aa4b2; margin-top: 1px; }
+.surgext .sx-knob .sx-label { font-size: 10px; color: #9aa4b2; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .surgext .sx-knob .sx-val { font-size: 11px; color: #e9edf3; font-variant-numeric: tabular-nums; }
 
 .surgext .sx-card select.sx-mine { width: 100%; max-width: none; height: 34px; margin: 2px 0 6px 0; }

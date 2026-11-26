@@ -15,6 +15,7 @@ function (event, funcs) {
     function hz(x) { return 440 * Math.pow(2, (-60 + 130 * x) / 12); }
     function fmtHz(x) { var f = hz(x); return f < 1000 ? f.toFixed(0) + ' Hz' : (f / 1000).toFixed(2) + ' kHz'; }
     function fmtPct(x) { return (x * 100).toFixed(0) + '%'; }
+    function fmtDb(x) { var v = (x * 2 - 1) * 48; return (v > 0 ? '+' : '') + v.toFixed(1) + ' dB'; }
     function fmtBi(x) { var v = (x * 2 - 1) * 100; return (v > 0 ? '+' : '') + v.toFixed(0) + '%'; }
 
     // id, label, formatter, default shown before the host reports a value
@@ -22,6 +23,7 @@ function (event, funcs) {
         cutoff:  ['a_filter1_cutoff',    'Cutoff',  fmtHz,   0.5],
         res:     ['a_filter1_resonance', 'Reso',    fmtPct,  0.0],
         envmod:  ['a_filter1_envmod',    'Env amt', fmtBi,   0.5],
+        gain:    ['a_vca_level',         'Gain',    fmtDb,   0.5],
         a_vol:   ['a_volume',            'Level',   fmtPct,  0.8],
         g_vol:   ['volume',              'Master',  fmtPct,  0.8],
         o1:      ['a_level_o1',          'Osc 1',   fmtPct,  0.8],
@@ -112,7 +114,7 @@ function (event, funcs) {
             '<div class="sx-namebox"><div class="sx-name">-</div><div class="sx-sub"></div></div></div>' +
             '<div class="sx-body">' +
             '<div class="sx-col sx-col-w">' +
-              '<div class="sx-card"><h4>Amp envelope</h4><canvas class="sx-graph sx-g-aeg" width="560" height="140"></canvas><div class="sx-row" data-k="aeg_a,aeg_d,aeg_s,aeg_r"></div></div>' +
+              '<div class="sx-card"><h4>Amp envelope</h4><canvas class="sx-graph sx-g-aeg" width="560" height="140"></canvas><div class="sx-row" data-k="aeg_a,aeg_d,aeg_s,aeg_r,gain"></div></div>' +
               '<div class="sx-card"><h4>Filter envelope</h4><canvas class="sx-graph sx-g-feg" width="560" height="140"></canvas><div class="sx-row" data-k="feg_a,feg_d,feg_s,feg_r"></div></div>' +
             '</div>' +
             '<div class="sx-col sx-col-w">' +
@@ -137,7 +139,7 @@ function (event, funcs) {
                 el.innerHTML = '<canvas width="104" height="104"></canvas><div class="sx-val"></div><div class="sx-label">' + def[1] + '</div>';
                 row.appendChild(el);
                 var k = { key: key, uri: BASE + def[0], fmt: def[2], v: d.values[BASE + def[0]], el: el,
-                          cv: el.querySelector('canvas'), txt: el.querySelector('.sx-val'), bi: key === 'envmod' };
+                          cv: el.querySelector('canvas'), txt: el.querySelector('.sx-val'), bi: key === 'envmod' || key === 'gain' };
                 if (k.v === undefined) k.v = def[3];
                 d.knobs[key] = k;
                 var drag = null;
@@ -207,7 +209,7 @@ function (event, funcs) {
     function buildItems(d, keepKey) {
         var items = [];
         d.mine.forEach(function (m) { items.push({ kind: 'u', uri: m.uri, cat: 'My presets', name: m.name }); });
-        PATCHES.forEach(function (p, i) { items.push({ kind: 'f', idx: i, cat: p[0], name: p[1] }); });
+        PATCHES.forEach(function (p, i) { items.push({ kind: 'f', idx: i, cat: p[0], name: p[1], macros: p[2] }); });
         d.items = items;
         if (keepKey !== undefined) {
             d.pos = 0;
@@ -403,6 +405,14 @@ function (event, funcs) {
         root.querySelector('.sx-name').textContent = it.name;
         root.querySelector('.sx-sub').textContent = (it.kind === 'u' ? 'My presets' : it.cat) + '  (' + (d.pos + 1) + '/' + d.items.length + ')';
         renderLists(d);
+        // macro names as stored in the patch (factory and 3rd party patches); "M1".. when unnamed
+        for (var m = 0; m < 8; m++) {
+            var k = d.knobs && d.knobs['m' + m];
+            if (!k) continue;
+            var nm = it.macros && it.macros[m] && it.macros[m] !== '-' ? it.macros[m] : 'M' + (m + 1);
+            k.el.querySelector('.sx-label').textContent = nm;
+            k.el.title = nm;
+        }
     }
 
     function redrawGraphs(d) {
