@@ -11,6 +11,8 @@
 #   ./build-lv2-pi.sh --deploy-only  only copy (no update/build)
 #   ./build-lv2-pi.sh --deb        also make a .deb package in ./dist
 #   ./build-lv2-pi.sh --deb-only   only make the .deb from the existing build
+#   --with-fx                      also build/install "Surge XT Effects" (off by default)
+#                                  (also settable as WITH_FX=1)
 #   --lv2-dir DIR                  where the .lv2 plugin folders go (default ~/.lv2)
 #                                  only the plugins; patches/wavetables keep their own folder
 #                                  (also settable as LV2_DIR=DIR)
@@ -42,6 +44,7 @@ DO_SWAP=1
 DO_DEPLOY=0
 DO_BUILD=1
 DO_DEB=0
+WITH_FX="${WITH_FX:-0}"
 while [[ $# -gt 0 ]]; do
   arg="$1"; shift
   case "$arg" in
@@ -56,14 +59,23 @@ while [[ $# -gt 0 ]]; do
     --lv2-dir)
       [[ $# -gt 0 ]] || { echo "--lv2-dir needs a folder"; exit 1; }
       LV2_DIR_EXPLICIT="$1"; shift ;;
+    --with-fx)   WITH_FX=1 ;;
     --lv2-dir=*) LV2_DIR_EXPLICIT="${arg#--lv2-dir=}" ;;
-    -h|--help)   sed -n '2,24p' "$0"; exit 0 ;;
+    -h|--help)   sed -n '2,26p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg"; exit 1 ;;
   esac
 done
 
 if [[ -n "$LV2_DIR_EXPLICIT" ]]; then
   LV2_DIR="${LV2_DIR_EXPLICIT/#\~/$HOME}"
+fi
+
+# Which plugins to build/install: Surge XT always, Surge XT Effects only on request
+BUNDLES=("Surge XT.lv2")
+BUILD_TARGETS=(surge-xt_LV2)
+if [[ "$WITH_FX" == "1" ]]; then
+  BUNDLES+=("Surge XT Effects.lv2")
+  BUILD_TARGETS+=(surge-fx_LV2)
 fi
 
 cd "$REPO_DIR"
@@ -137,7 +149,7 @@ make_deb() {
 
   echo "==> Building $out"
   mkdir -p "$stage/DEBIAN" "$stage$deb_lv2" "$stage/usr/share/surge-xt" "$REPO_DIR/dist"
-  for bundle in "Surge XT.lv2" "Surge XT Effects.lv2"; do
+  for bundle in "${BUNDLES[@]}"; do
     [[ -d "$products/$bundle" ]] && cp -r "$products/$bundle" "$stage$deb_lv2/"
   done
   cp -r "$REPO_DIR/resources/data/." "$stage/usr/share/surge-xt/"
@@ -183,7 +195,7 @@ deploy_pistomp() {
   [[ -n "$LV2_DIR_EXPLICIT" ]] && remote_lv2="$LV2_DIR_EXPLICIT"
   echo "    LV2 folder on pi-Stomp: $remote_lv2"
   ssh "$PISTOMP" "mkdir -p '$remote_lv2' ~/.local/share/surge-xt"
-  for bundle in "Surge XT.lv2" "Surge XT Effects.lv2"; do
+  for bundle in "${BUNDLES[@]}"; do
     if [[ -d "$products/$bundle" ]]; then
       rsync -as --delete "$products/$bundle/" "$PISTOMP:$remote_lv2/$bundle/"
       echo "    copied $bundle"
@@ -242,8 +254,8 @@ if [[ $DO_BUILD -eq 1 ]]; then
     -DSURGE_SKIP_VST3=TRUE \
     -DSURGE_SKIP_STANDALONE=TRUE
 
-  echo "==> Building with $JOBS jobs (this takes a while on a Pi)"
-  cmake --build "$BUILD_DIR" --config Release --target surge-xt_LV2 surge-fx_LV2 -j "$JOBS"
+  echo "==> Building ${BUNDLES[*]} with $JOBS jobs (this takes a while on a Pi)"
+  cmake --build "$BUILD_DIR" --config Release --target "${BUILD_TARGETS[@]}" -j "$JOBS"
 
   PRODUCTS="$BUILD_DIR/surge_xt_products"
   install_modgui "$PRODUCTS/Surge XT.lv2"
@@ -256,7 +268,7 @@ if [[ $DO_BUILD -eq 1 ]]; then
   fi
   [[ -z "$SUDO" ]] || echo "    (needs sudo to write to $LV2_DIR)"
   $SUDO mkdir -p "$LV2_DIR"
-  for bundle in "Surge XT.lv2" "Surge XT Effects.lv2"; do
+  for bundle in "${BUNDLES[@]}"; do
     if [[ -d "$PRODUCTS/$bundle" ]]; then
       $SUDO rm -rf "$LV2_DIR/$bundle"
       $SUDO cp -r "$PRODUCTS/$bundle" "$LV2_DIR/"
