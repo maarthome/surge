@@ -13,6 +13,9 @@
 #   ./build-lv2-pi.sh --deb-only   only make the .deb from the existing build
 #   --with-fx                      also build/install "Surge XT Effects" (off by default)
 #                                  (also settable as WITH_FX=1)
+#   --x11                          with --deploy: also install the "GUI" switch helper (VNC + web page)
+#                                  on the pi-Stomp: apt xvfb x11vnc novnc websockify jalv + a service
+#                                  (also settable as WITH_X11=1)
 #   --no-progress                  show the raw compiler output instead of the progress bar
 #   --panel-scale N                size of the MOD UI panel, 1.0 = 940x500 px (default 1.25)
 #                                  (also settable as PANEL_SCALE=N)
@@ -48,6 +51,7 @@ DO_DEPLOY=0
 DO_BUILD=1
 DO_DEB=0
 WITH_FX="${WITH_FX:-0}"
+WITH_X11="${WITH_X11:-0}"
 PANEL_SCALE="${PANEL_SCALE:-1.25}"
 PROGRESS=1
 while [[ $# -gt 0 ]]; do
@@ -65,6 +69,7 @@ while [[ $# -gt 0 ]]; do
       [[ $# -gt 0 ]] || { echo "--lv2-dir needs a folder"; exit 1; }
       LV2_DIR_EXPLICIT="$1"; shift ;;
     --with-fx)   WITH_FX=1 ;;
+    --x11)       WITH_X11=1 ;;
     --no-progress) PROGRESS=0 ;;
     --panel-scale)
       [[ $# -gt 0 ]] || { echo "--panel-scale needs a number"; exit 1; }
@@ -287,6 +292,14 @@ deploy_pistomp() {
   done
   echo "==> Copying factory data (patches, wavetables)"
   rsync -as "$REPO_DIR/resources/data/" "$PISTOMP:.local/share/surge-xt/"
+  if [[ $WITH_X11 -eq 1 ]]; then
+    echo "==> Installing the GUI helper (VNC + web page) on the pi-Stomp"
+    ssh "$PISTOMP" "mkdir -p ~/.local/share/surge-xt-x11 ~/.config/systemd/user"
+    rsync -as "$REPO_DIR/resources/modgui/surge-xt/x11/" "$PISTOMP:.local/share/surge-xt-x11/"
+    ssh "$PISTOMP" 'mv ~/.local/share/surge-xt-x11/surge-x11-helper.service ~/.config/systemd/user/ && chmod +x ~/.local/share/surge-xt-x11/surge-x11-*'
+    ssh -t "$PISTOMP" 'sudo apt-get install -y xvfb x11vnc novnc websockify jalv && sudo loginctl enable-linger "$USER" && systemctl --user daemon-reload && systemctl --user enable --now surge-x11-helper.service && systemctl --user restart surge-x11-helper.service' \
+      || echo "    WARNING: GUI helper install failed - see the messages above"
+  fi
   echo "==> Restarting MOD on the pi-Stomp so it finds the new plugins"
   ssh -t "$PISTOMP" 'sudo systemctl restart mod-host mod-ui'
 }

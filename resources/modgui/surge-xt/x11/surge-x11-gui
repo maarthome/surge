@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Opens the Surge XT LV2 plugin with its own X11 window (via jalv).
+# DISPLAY decides where the window shows up (the MOD panel helper uses a virtual screen shown via VNC/noVNC),
+# Note: this is a separate Surge XT instance, not the one inside the MOD pedalboard.
+set -u
+URI="https://surge-synthesizer.github.io/lv2/surge-xt"
+NAME="SurgeXT"
+
+JALV=""
+for c in jalv.gtk3 jalv.gtk jalv.qt5 jalv.qt6 jalv; do
+  if command -v "$c" >/dev/null 2>&1; then JALV="$c"; break; fi
+done
+if [[ -z "$JALV" ]]; then
+  echo "jalv is not installed. Run: sudo apt install jalv" >&2
+  exit 1
+fi
+export LV2_PATH="${LV2_PATH:-$HOME/.lv2:/usr/lib/lv2:/usr/local/lib/lv2}"
+
+connect_ports() {
+  # best effort: audio to the system outputs, keyboard MIDI from the system capture ports
+  sleep 4
+  command -v jack_connect >/dev/null 2>&1 || return 0
+  jack_connect "$NAME:audio_out_1" system:playback_1 >/dev/null 2>&1 || true
+  jack_connect "$NAME:audio_out_2" system:playback_2 >/dev/null 2>&1 || true
+  local m
+  for m in $(jack_lsp 2>/dev/null | grep '^system:midi_capture'); do
+    jack_connect "$m" "$NAME:in" >/dev/null 2>&1 || true
+  done
+}
+
+connect_ports &
+exec "$JALV" -n "$NAME" "$URI"

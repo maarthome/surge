@@ -1,0 +1,9 @@
+[Unit]
+Description=Surge XT X11 GUI helper (for the MOD panel switch)
+
+[Service]
+ExecStart=%h/.local/share/surge-xt-x11/surge-x11-helper.py
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

@@ -6,6 +6,8 @@
 .surgext .sx-root { pointer-events: none; }
 .surgext .sx-card, .surgext .sx-top button, .surgext .sx-top select, .surgext .sx-top .sx-search { pointer-events: auto; }
 .surgext .sx-light { position: absolute; right: 74px; bottom: 16px; width: 14px; height: 14px; background-size: contain; background-repeat: no-repeat; z-index: 40; }
+.surgext .sx-x11 { position: absolute; right: 100px; bottom: 12px; width: 86px; height: 22px; min-width: 0; padding: 0; font-size: 11px; letter-spacing: .04em; pointer-events: auto; z-index: 40; }
+.surgext .sx-x11.on { color: #ff9f2e; border-color: #ff9f2e; }
 .surgext .sx-bypass { position: absolute; right: 14px; bottom: 14px; width: 50px; height: 18px; line-height: 18px; text-align: center; font-size: 9px; letter-spacing: .08em; color: #9aa4b2; border: 1px solid #353d48; border-radius: 3px; cursor: pointer; z-index: 40; }
 .surgext .sx-top { display: flex; align-items: center; gap: 8px; height: 56px; border-bottom: 1px solid #2a3038; }
 .surgext .sx-search { width: 130px; height: 38px; box-sizing: border-box; background: #232932; color: #d8dde6; border: 1px solid #353d48; border-radius: 4px; font-size: 14px; padding: 0 10px; margin-right: 6px; }

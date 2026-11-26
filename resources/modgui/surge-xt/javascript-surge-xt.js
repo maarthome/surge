@@ -120,6 +120,7 @@ function (event, funcs) {
             '<div class="sx-col" style="flex:1">' +
               '<div class="sx-card"><h4>Macros</h4><div class="sx-row" data-k="m0,m1,m2,m3"></div><div class="sx-row" data-k="m4,m5,m6,m7"></div></div>' +
             '</div></div>' +
+            '<button class="sx-x11" title="Open the Surge XT window as a web page (VNC) on this PC">GUI &#8599;</button>' +
             '<div class="sx-modal" hidden><div class="sx-dialog"><div class="sx-dlg-title">Save preset as</div>' +
               '<input class="sx-name-in" type="text" maxlength="60" spellcheck="false">' +
               '<div class="sx-hint"></div>' +
@@ -180,6 +181,7 @@ function (event, funcs) {
         $(root).find('.sx-prev').on('click', function () { choose(d, (d.pos - 1 + d.items.length) % d.items.length); });
         $(root).find('.sx-next').on('click', function () { choose(d, (d.pos + 1) % d.items.length); });
         wirePresets(d);
+        wireX11(d);
         Object.keys(d.knobs).forEach(function (key) { setKnob(d, d.knobs[key], d.knobs[key].v, false); });
         showPatch(d);
         redrawGraphs(d);
@@ -316,6 +318,41 @@ function (event, funcs) {
                 else if (e.key === 'Escape') { d.root.querySelector('.sx-modal').hidden = true; }
             })
             .on('keyup keypress', function (e) { e.stopPropagation(); });
+    }
+
+    // "GUI" switch: asks the helper on the pi-Stomp (port 8765) to start the plugin GUI on a virtual
+    // screen and opens it as a web page (noVNC). Click again to stop it.
+    function wireX11(d) {
+        var $b = $(d.root).find('.sx-x11'), base = 'http://' + location.hostname + ':8765';
+        function call(path, cb) {
+            try {
+                var x = new XMLHttpRequest();
+                x.open('GET', base + path, true);
+                x.timeout = 20000;
+                x.onload = function () { var r = {}; try { r = JSON.parse(x.responseText); } catch (e) {} cb(r); };
+                x.onerror = x.ontimeout = function () { cb(null); };
+                x.send();
+            } catch (e) { cb(null); }
+        }
+        function show(running) { d.x11 = running; $b.toggleClass('on', !!running).html(running ? 'GUI on &#9632;' : 'GUI &#8599;'); }
+        call('/status', function (r) { if (r) show(r.running); });
+        $b.on('click', function () {
+            if (d.x11) { call('/stop', function (r) { show(r ? r.running : false); status(d, 'GUI stopped'); }); return; }
+            // open the tab right away (popup blockers allow it only inside the click); fill in the address later
+            var w = window.open('', '_blank');
+            status(d, 'Starting GUI...');
+            call('/start', function (r) {
+                if (r && r.running) {
+                    show(true);
+                    if (w) { w.location = r.url; } else { status(d, 'Open ' + r.url); }
+                    status(d, 'GUI running - opened in a new tab');
+                } else {
+                    if (w) w.close();
+                    show(false);
+                    status(d, r ? (r.error || 'GUI failed to start') : 'X11 helper not running on the pi-Stomp (deploy with --x11)');
+                }
+            });
+        });
     }
 
     function setKnob(d, k, v, send) {
